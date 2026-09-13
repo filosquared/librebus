@@ -25,6 +25,7 @@ enum LibrusClientError: LocalizedError {
 final class LibrusClient {
     private let apiBase = URL(string: "https://synergia.librus.pl/gateway/api/2.0/")!
     private let portalBase = URL(string: "https://synergia.librus.pl")!
+    private let familyBase = URL(string: "https://portal.librus.pl")!
     private let oauthBase = URL(string: "https://api.librus.pl/OAuth/")!
     private let logger = Logger(subsystem: "com.filiplopes.Librebus", category: "network")
     private let cookieStorage: HTTPCookieStorage
@@ -46,10 +47,13 @@ final class LibrusClient {
 
     func login(username: String, password: String) async throws -> StudentProfile {
         do {
-			let portalLoginURL = portalBase.appendingPathComponent("loguj/portalRodzina")
+			let portalLoginURL = familyBase.appendingPathComponent("rodzina/synergia/loguj")
 			let (_, portalResponse) = try await request(
 				url: portalLoginURL,
-				headers: ["Referer": "https://portal.librus.pl/"]
+				headers: [
+					"Referer": "https://portal.librus.pl/rodzina/",
+					"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+				]
 			)
 			// portalRodzina redirects to the current OAuth authorization URL. Do
 			// not issue another OAuth GET: that creates a new OAuth session.
@@ -389,6 +393,10 @@ final class LibrusClient {
 			var request = URLRequest(url: url)
 			request.httpMethod = method
 			request.httpBody = body
+			request.setValue(
+				"Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
+				forHTTPHeaderField: "User-Agent"
+			)
 			if !grantCookieHeader.isEmpty {
 				request.setValue(grantCookieHeader, forHTTPHeaderField: "Cookie")
 			}
