@@ -26,7 +26,6 @@ private struct LoginView: View {
     @EnvironmentObject private var model: AppModel
     @State private var username = ""
     @State private var password = ""
-    @State private var isShowingPassword = false
     @FocusState private var focusedField: LoginField?
 
     var body: some View {
@@ -51,33 +50,21 @@ private struct LoginView: View {
                         TextField("Username", text: $username)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
+                            .textContentType(.username)
+                            .keyboardType(.asciiCapable)
                             .textFieldStyle(.roundedBorder)
                             .focused($focusedField, equals: .username)
                             .submitLabel(.next)
                             .onSubmit { focusedField = .password }
 
                         HStack {
-                            if isShowingPassword {
-                                TextField("Password", text: $password)
-                                    .textFieldStyle(.roundedBorder)
-                                    .focused($focusedField, equals: .password)
-                                    .submitLabel(.go)
-                                    .onSubmit(signIn)
-                            } else {
-                                SecureField("Password", text: $password)
-                                    .textFieldStyle(.roundedBorder)
-                                    .focused($focusedField, equals: .password)
-                                    .submitLabel(.go)
-                                    .onSubmit(signIn)
-                            }
-
-                            Button {
-                                isShowingPassword.toggle()
-                            } label: {
-                                Image(systemName: isShowingPassword ? "eye.slash" : "eye")
-                            }
-                            .buttonStyle(.borderless)
-                            .accessibilityLabel(isShowingPassword ? "Hide password" : "Show password")
+                            SecureField("Password", text: $password)
+                                .textContentType(.password)
+                                .keyboardType(.asciiCapable)
+                                .textFieldStyle(.roundedBorder)
+                                .focused($focusedField, equals: .password)
+                                .submitLabel(.go)
+                                .onSubmit(signIn)
                         }
                     }
 

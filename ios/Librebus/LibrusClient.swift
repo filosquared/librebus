@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 enum LibrusClientError: LocalizedError {
     case invalidCredentials
@@ -22,6 +23,7 @@ final class LibrusClient {
     private let apiBase = URL(string: "https://synergia.librus.pl/gateway/api/2.0/")!
     private let portalBase = URL(string: "https://synergia.librus.pl")!
     private let oauthBase = URL(string: "https://api.librus.pl/OAuth/")!
+    private let logger = Logger(subsystem: "com.filiplopes.Librebus", category: "network")
     private let session: URLSession
 
     init() {
@@ -29,6 +31,9 @@ final class LibrusClient {
         configuration.timeoutIntervalForRequest = 20
         configuration.timeoutIntervalForResource = 60
         configuration.waitsForConnectivity = true
+        configuration.httpShouldSetCookies = true
+        configuration.httpCookieAcceptPolicy = .always
+        configuration.httpCookieStorage = HTTPCookieStorage()
         session = URLSession(configuration: configuration)
     }
 
@@ -36,17 +41,19 @@ final class LibrusClient {
         do {
             _ = try await request(url: oauthURL(path: "Authorization?client_id=46&response_type=code&scope=mydata"))
 
-			var loginRequest = URLRequest(url: oauthURL(path: "Authorization?client_id=46"))
-			loginRequest.httpMethod = "POST"
-			loginRequest.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-			loginRequest.httpBody = formBody([
+			let loginURL = oauthURL(path: "Authorization?client_id=46")
+			let loginBody = formBody([
 				"action": "login",
 				"login": username,
 				"pass": password
 			])
-			let (_, response) = try await session.data(for: loginRequest)
-			guard let loginResponse = response as? HTTPURLResponse,
-				  (200..<400).contains(loginResponse.statusCode) else {
+			let (_, loginResponse) = try await request(
+				url: loginURL,
+				method: "POST",
+				body: loginBody,
+				headers: ["Content-Type": "application/x-www-form-urlencoded"]
+			)
+			guard (200..<400).contains(loginResponse.statusCode) else {
                 throw LibrusClientError.invalidCredentials
             }
 
@@ -351,19 +358,34 @@ final class LibrusClient {
         return html
     }
 
-    private func request(url: URL) async throws -> (Data, HTTPURLResponse) {
-        do {
-            let (data, response) = try await session.data(from: url)
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw LibrusClientError.unexpectedResponse
-            }
-            return (data, httpResponse)
-        } catch let error as LibrusClientError {
-            throw error
-        } catch {
-            throw LibrusClientError.unavailable
-        }
-    }
+	private func request(url: URL, method: String = "GET", body: Data? = nil, headers: [String: String] = [:]) async throws -> (Data, HTTPURLResponse) {
+		for attempt in 0..<3 {
+			var request = URLRequest(url: url)
+			request.httpMethod = method
+			request.httpBody = body
+			for (key, value) in headers {
+				request.setValue(value, forHTTPHeaderField: key)
+			}
+
+			do {
+				let (data, response) = try await session.data(for: request)
+				guard let httpResponse = response as? HTTPURLResponse else {
+					throw LibrusClientError.unexpectedResponse
+				}
+				logger.debug("Librus request \(method, privacy: .public) \(url.host ?? "unknown", privacy: .public) returned \(httpResponse.statusCode, privacy: .public)")
+				return (data, httpResponse)
+			} catch let error as LibrusClientError {
+				throw error
+			} catch {
+				logger.error("Librus request failed for \(url.host ?? "unknown", privacy: .public): \(error.localizedDescription, privacy: .public)")
+				if attempt == 2 {
+					throw LibrusClientError.unavailable
+				}
+				try? await Task.sleep(nanoseconds: UInt64(250_000_000 * (attempt + 1)))
+			}
+		}
+		throw LibrusClientError.unavailable
+	}
 
     private func oauthURL(path: String) -> URL {
         URL(string: path, relativeTo: oauthBase)!.absoluteURL
