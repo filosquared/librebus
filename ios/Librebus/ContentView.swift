@@ -14,6 +14,7 @@ struct ContentView: View {
             }
         }
         .tint(.indigo)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }
 
@@ -94,6 +95,7 @@ private struct LoginView: View {
                 }
                 .padding(24)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .scrollDismissesKeyboard(.interactively)
             .navigationBarHidden(true)
             .toolbar {

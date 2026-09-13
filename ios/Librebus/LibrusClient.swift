@@ -24,6 +24,7 @@ final class LibrusClient {
     private let portalBase = URL(string: "https://synergia.librus.pl")!
     private let oauthBase = URL(string: "https://api.librus.pl/OAuth/")!
     private let logger = Logger(subsystem: "com.filiplopes.Librebus", category: "network")
+    private let cookieStorage: HTTPCookieStorage
     private let session: URLSession
 
     init() {
@@ -33,7 +34,9 @@ final class LibrusClient {
         configuration.waitsForConnectivity = true
         configuration.httpShouldSetCookies = true
         configuration.httpCookieAcceptPolicy = .always
-        configuration.httpCookieStorage = HTTPCookieStorage()
+        let cookieStorage = HTTPCookieStorage()
+        configuration.httpCookieStorage = cookieStorage
+        self.cookieStorage = cookieStorage
         session = URLSession(configuration: configuration)
     }
 
@@ -57,10 +60,13 @@ final class LibrusClient {
                 throw LibrusClientError.invalidCredentials
             }
 
-            let (_, grantResponse) = try await request(url: oauthURL(path: "Authorization/Grant?client_id=46"))
-            guard (200..<400).contains(grantResponse.statusCode) else {
-                throw LibrusClientError.invalidCredentials
-            }
+			let grantURL = oauthURL(path: "Authorization/Grant?client_id=46")
+			let (_, grantResponse) = try await request(url: grantURL)
+			guard (200..<400).contains(grantResponse.statusCode) else {
+				throw LibrusClientError.invalidCredentials
+			}
+			bridgeGrantCookies(to: apiBase)
+			bridgeGrantCookies(to: portalBase)
 
 			let tokenInfo = try await apiJSON("Auth/TokenInfo")
 			let identifier = string(tokenInfo["UserIdentifier"], fallback: "")
@@ -396,6 +402,24 @@ final class LibrusClient {
         components.queryItems = values.map { URLQueryItem(name: $0.key, value: $0.value) }
         return components.percentEncodedQuery?.data(using: .utf8)
     }
+
+	private func bridgeGrantCookies(to destination: URL) {
+		guard let destinationHost = destination.host else { return }
+		let grantURL = oauthBase
+		for cookie in cookieStorage.cookies(for: grantURL) ?? [] {
+			var properties: [HTTPCookiePropertyKey: Any] = [
+				.name: cookie.name,
+				.value: cookie.value,
+				.domain: destinationHost,
+				.path: "/"
+			]
+			if cookie.isSecure { properties[.secure] = "TRUE" }
+			if let expires = cookie.expiresDate { properties[.expires] = expires }
+			if let bridged = HTTPCookie(properties: properties) {
+				cookieStorage.setCookie(bridged)
+			}
+		}
+	}
 
     private func dictionary(_ value: Any?) -> [String: Any]? {
         value as? [String: Any]
