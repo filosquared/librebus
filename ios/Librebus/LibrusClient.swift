@@ -1,8 +1,14 @@
 import Foundation
 import OSLog
+#if os(macOS)
+import AppKit
+#endif
 
-enum LibrusClientError: LocalizedError {
+enum LibrusClientError: LocalizedError, Equatable {
     case invalidCredentials
+    case synergiaAccountRequired
+    case loginFlowUnavailable
+    case additionalVerificationRequired
     case sessionUnauthorized
     case unavailable
     case unexpectedResponse
@@ -11,9 +17,15 @@ enum LibrusClientError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidCredentials:
-            return "Librus rejected the login details."
+            return "Librus rejected this sign-in. Check your school-issued Synergia login and password."
+        case .synergiaAccountRequired:
+            return "Use the Synergia login issued by your school. Email-based Konto LIBRUS sign-in is not supported in Librebus yet."
+        case .loginFlowUnavailable:
+            return "Librebus could not complete the Librus login flow. This does not mean your password is incorrect."
+        case .additionalVerificationRequired:
+            return "Librus requires an additional verification step. Complete it on the official Synergia website; Librebus cannot complete it yet."
         case .sessionUnauthorized:
-            return "Librus accepted the login, but rejected the Synergia API session. Try again or use the official Librus app to verify the account."
+            return "Librus did not authorize access to your school data. The session may be incomplete or expired."
         case .unavailable:
             return "Librus is currently unavailable. Check your internet connection."
         case .unexpectedResponse, .malformedData:
@@ -25,51 +37,42 @@ enum LibrusClientError: LocalizedError {
 final class LibrusClient {
     private let apiBase = URL(string: "https://synergia.librus.pl/gateway/api/2.0/")!
     private let portalBase = URL(string: "https://synergia.librus.pl")!
-    private let familyBase = URL(string: "https://portal.librus.pl")!
-    private let oauthBase = URL(string: "https://api.librus.pl/OAuth/")!
     private let logger = Logger(subsystem: "com.filiplopes.Librebus", category: "network")
     private let cookieStorage: HTTPCookieStorage
     private let session: URLSession
-    private var grantCookieHeader = ""
 
-    init() {
-        let configuration = URLSessionConfiguration.default
+    init(configuration: URLSessionConfiguration = .ephemeral) {
         configuration.timeoutIntervalForRequest = 20
         configuration.timeoutIntervalForResource = 60
         configuration.waitsForConnectivity = true
         configuration.httpShouldSetCookies = true
         configuration.httpCookieAcceptPolicy = .always
-        let cookieStorage = HTTPCookieStorage()
+        let cookieStorage = configuration.httpCookieStorage ?? HTTPCookieStorage()
         configuration.httpCookieStorage = cookieStorage
         self.cookieStorage = cookieStorage
         session = URLSession(configuration: configuration)
     }
 
     func login(username: String, password: String) async throws -> StudentProfile {
+        let username = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !username.contains("@") else { throw LibrusClientError.synergiaAccountRequired }
+        guard !username.isEmpty, !password.isEmpty else { throw LibrusClientError.invalidCredentials }
         do {
-			let portalLoginURL = familyBase.appendingPathComponent("rodzina/synergia/loguj")
+			let portalLoginURL = portalBase.appendingPathComponent("loguj/portalRodzina")
 			let (_, portalResponse) = try await request(
 				url: portalLoginURL,
 				headers: [
-					"Referer": "https://portal.librus.pl/rodzina/",
+					"Referer": "https://portal.librus.pl/",
 					"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
 				]
 			)
 			// portalRodzina redirects to the current OAuth authorization URL. Do
 			// not issue another OAuth GET: that creates a new OAuth session.
-			let loginURL: URL
-			if let redirectedURL = portalResponse.url,
-				   redirectedURL.host == oauthBase.host,
-				   redirectedURL.path.hasPrefix("/OAuth/Authorization") {
-				loginURL = redirectedURL
-			} else {
-				// Some portal responses remain on a GET-only page instead of
-				// exposing the OAuth URL as the final response URL. In that case
-				// use the known authorization endpoint without creating a second
-				// OAuth session first.
-				loginURL = oauthURL(path: "Authorization?client_id=46")
+			guard portalResponse.statusCode == 200, let redirectedURL = portalResponse.url else {
+				throw LibrusClientError.loginFlowUnavailable
 			}
-			let loginBody = formBody([
+			let loginURL = try Self.authorizationURL(redirectedURL.absoluteString)
+			let loginBody = Self.formBody([
 				"action": "login",
 				"login": username,
 				"pass": password
@@ -80,32 +83,21 @@ final class LibrusClient {
 				body: loginBody,
 				headers: ["Content-Type": "application/x-www-form-urlencoded"]
 			)
-			guard (200..<400).contains(loginResponse.statusCode) else {
-                throw LibrusClientError.invalidCredentials
-            }
-			guard let loginPayload = try? JSONSerialization.jsonObject(with: loginData) as? [String: Any] else {
-				throw LibrusClientError.invalidCredentials
-			}
-			if string(loginPayload["status"], fallback: "") == "error" {
-				throw LibrusClientError.invalidCredentials
-			}
-			let nextPath = string(loginPayload["goTo"], fallback: "")
-			guard !nextPath.isEmpty,
-				  let nextURL = URL(string: nextPath, relativeTo: apiBase)?.absoluteURL else {
-				throw LibrusClientError.unexpectedResponse
-			}
+			let nextURL = try Self.loginContinuation(data: loginData, response: loginResponse)
 			let (_, nextResponse) = try await request(url: nextURL)
 			guard (200..<400).contains(nextResponse.statusCode) else {
 				throw LibrusClientError.sessionUnauthorized
 			}
-			captureSessionCookies(for: [portalLoginURL, loginURL, nextURL, oauthBase])
-			bridgeGrantCookies(to: apiBase)
-			bridgeGrantCookies(to: portalBase)
+			guard nextResponse.url?.host == portalBase.host else {
+				throw LibrusClientError.additionalVerificationRequired
+			}
+			// URLSession stores cookies from the redirect chain with their original
+			// domains and paths. Never overwrite them with OAuth-domain cookies.
 
 			let tokenInfo = try await apiJSON("Auth/TokenInfo")
 			let identifier = string(tokenInfo["UserIdentifier"], fallback: "")
 			guard !identifier.isEmpty else {
-				throw LibrusClientError.invalidCredentials
+				throw LibrusClientError.malformedData
 			}
 			let (_, accessResponse) = try await request(url: URL(string: "Auth/UserInfo/\(identifier)", relativeTo: apiBase)!.absoluteURL)
 			guard accessResponse.statusCode == 200 else {
@@ -400,7 +392,8 @@ final class LibrusClient {
     }
 
 	private func request(url: URL, method: String = "GET", body: Data? = nil, headers: [String: String] = [:]) async throws -> (Data, HTTPURLResponse) {
-		for attempt in 0..<3 {
+		let attempts = method == "GET" ? 3 : 1
+		for attempt in 0..<attempts {
 			var request = URLRequest(url: url)
 			request.httpMethod = method
 			request.httpBody = body
@@ -408,9 +401,6 @@ final class LibrusClient {
 				"Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
 				forHTTPHeaderField: "User-Agent"
 			)
-			if !grantCookieHeader.isEmpty {
-				request.setValue(grantCookieHeader, forHTTPHeaderField: "Cookie")
-			}
 			for (key, value) in headers {
 				request.setValue(value, forHTTPHeaderField: key)
 			}
@@ -420,13 +410,14 @@ final class LibrusClient {
 				guard let httpResponse = response as? HTTPURLResponse else {
 					throw LibrusClientError.unexpectedResponse
 				}
-				logger.debug("Librus request \(method, privacy: .public) \(url.host ?? "unknown", privacy: .public) returned \(httpResponse.statusCode, privacy: .public)")
+				// Exclude query strings, bodies and cookies: they can contain secrets.
+				logger.debug("Librus request \(method, privacy: .public) \(url.host ?? "unknown", privacy: .public) returned \(httpResponse.statusCode, privacy: .public); final host \(httpResponse.url?.host ?? "unknown", privacy: .public); type \(httpResponse.mimeType ?? "unknown", privacy: .public)")
 				return (data, httpResponse)
 			} catch let error as LibrusClientError {
 				throw error
 			} catch {
 				logger.error("Librus request failed for \(url.host ?? "unknown", privacy: .public): \(error.localizedDescription, privacy: .public)")
-				if attempt == 2 {
+				if attempt == attempts - 1 {
 					throw LibrusClientError.unavailable
 				}
 				try? await Task.sleep(nanoseconds: UInt64(250_000_000 * (attempt + 1)))
@@ -435,48 +426,39 @@ final class LibrusClient {
 		throw LibrusClientError.unavailable
 	}
 
-    private func oauthURL(path: String) -> URL {
-        URL(string: path, relativeTo: oauthBase)!.absoluteURL
+    static func authorizationURL(_ value: String) throws -> URL {
+        guard !value.isEmpty,
+              let url = URL(string: value, relativeTo: URL(string: "https://api.librus.pl/"))?.absoluteURL,
+              url.scheme == "https", url.host == "api.librus.pl",
+              url.port == nil || url.port == 443,
+              url.user == nil, url.password == nil,
+              url.path == "/OAuth/Authorization" || url.path.hasPrefix("/OAuth/Authorization/"),
+              URLComponents(url: url, resolvingAgainstBaseURL: true)?.queryItems?.contains(where: { $0.name == "error" }) != true
+        else { throw LibrusClientError.loginFlowUnavailable }
+        return url
     }
 
-    private func formBody(_ values: [String: String]) -> Data? {
-        var components = URLComponents()
-        components.queryItems = values.map { URLQueryItem(name: $0.key, value: $0.value) }
-        return components.percentEncodedQuery?.data(using: .utf8)
+    static func loginContinuation(data: Data, response: HTTPURLResponse) throws -> URL {
+        guard response.statusCode == 200,
+              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { throw LibrusClientError.loginFlowUnavailable }
+        if payload["status"] as? String == "error" {
+            throw LibrusClientError.invalidCredentials
+        }
+        guard payload["status"] as? String == "ok", let next = payload["goTo"] as? String else {
+            throw LibrusClientError.loginFlowUnavailable
+        }
+        return try authorizationURL(next)
     }
 
-	private func bridgeGrantCookies(to destination: URL) {
-		guard let destinationHost = destination.host else { return }
-		let sourceCookies = [oauthBase, portalBase, apiBase]
-			.flatMap { cookieStorage.cookies(for: $0) ?? [] }
-		for cookie in sourceCookies {
-			var properties: [HTTPCookiePropertyKey: Any] = [
-				.name: cookie.name,
-				.value: cookie.value,
-				.domain: destinationHost,
-				.path: "/"
-			]
-			if cookie.isSecure { properties[.secure] = "TRUE" }
-			if let expires = cookie.expiresDate { properties[.expires] = expires }
-			if let bridged = HTTPCookie(properties: properties) {
-				cookieStorage.setCookie(bridged)
-			}
-		}
-	}
-
-	private func captureSessionCookies(for sources: [URL]) {
-		var uniqueCookies: [String: HTTPCookie] = [:]
-		for source in sources {
-			for cookie in cookieStorage.cookies(for: source) ?? [] {
-				uniqueCookies[cookie.name] = cookie
-			}
-		}
-		grantCookieHeader = uniqueCookies.values
-			.sorted { $0.name < $1.name }
-			.map { "\($0.name)=\($0.value)" }
-			.joined(separator: "; ")
-		logger.debug("Librus login returned \(uniqueCookies.count, privacy: .public) unique session cookies: \(uniqueCookies.keys.sorted().joined(separator: ","), privacy: .public)")
-	}
+    static func formBody(_ values: [String: String]) -> Data {
+        // Query encoding leaves '+' literal; form decoding interprets it as a space.
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~")
+        func encode(_ value: String) -> String {
+            value.addingPercentEncoding(withAllowedCharacters: allowed)!
+        }
+        return Data(values.keys.sorted().map { "\(encode($0))=\(encode(values[$0]!))" }.joined(separator: "&").utf8)
+    }
 
     private func dictionary(_ value: Any?) -> [String: Any]? {
         value as? [String: Any]

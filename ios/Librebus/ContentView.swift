@@ -45,10 +45,14 @@ private struct LoginView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 14) {
-                        Text("Librus account")
+                        Text("School Synergia account")
                             .font(.headline)
 
-                        TextField("Username", text: $username)
+                        Text("Use the login and password issued by your school. Konto LIBRUS email sign-in is not supported yet.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+
+                        TextField("School-issued login", text: $username)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                             .textContentType(.username)

@@ -21,6 +21,26 @@ For a physical device, let Xcode manage signing and provisioning. The project us
 
 ## Data and privacy
 
+Sign in with the **school-issued Synergia login** (often digits with a suffix),
+not the email used for Konto LIBRUS. Email-based Konto LIBRUS sign-in and
+interactive verification are not implemented. A successful web login to Konto
+LIBRUS does not validate the Synergia adapter. Never paste real credentials into
+test fixtures.
+
+The iOS adapter starts at Synergia's `loguj/portalRodzina` endpoint, requires the
+redirected OAuth URL, checks the login JSON, and resolves `goTo` against
+`https://api.librus.pl/`. URLSession manages cookies using their original domains
+and paths. An HTTP 200 alone is not proof of a successful login.
+
+Offline authentication checks (macOS with Xcode):
+
+```bash
+swiftc -module-cache-path /tmp/librebus-swift-cache ios/Librebus/Models.swift ios/Librebus/LibrusClient.swift tests/ios_auth_checks.swift -o /tmp/librebus-auth-checks
+/tmp/librebus-auth-checks
+```
+
 Credentials are stored in the Keychain with device-only protection. Non-secret synchronized data is stored in the app's Application Support directory. Signing out deletes both the saved credentials and local cache.
 
-The app talks to Librus over HTTPS using the same public OAuth/API flow as the Python implementation. Librus can change that flow or its response formats, so the provider adapter may need maintenance as the upstream service evolves.
+The app talks to Librus over HTTPS. Its OAuth bootstrap differs from the legacy
+Python implementation. Librus can change that flow or its response formats, so
+the provider adapter may need maintenance as the upstream service evolves.
