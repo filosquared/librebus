@@ -436,8 +436,15 @@ final class LibrusClient {
 		}
 		let storedCookies = cookieStorage.cookies(for: source) ?? []
 		let cookies = responseCookies.isEmpty ? storedCookies : responseCookies
-		grantCookieHeader = cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
-		logger.debug("OAuth grant returned \(cookies.count, privacy: .public) cookies: \(cookies.map(\.name).joined(separator: ","), privacy: .public)")
+		var uniqueCookies: [String: HTTPCookie] = [:]
+		for cookie in cookies {
+			uniqueCookies[cookie.name] = cookie
+		}
+		grantCookieHeader = uniqueCookies.values
+			.sorted { $0.name < $1.name }
+			.map { "\($0.name)=\($0.value)" }
+			.joined(separator: "; ")
+		logger.debug("OAuth grant returned \(uniqueCookies.count, privacy: .public) unique cookies: \(uniqueCookies.keys.sorted().joined(separator: ","), privacy: .public)")
 	}
 
     private func dictionary(_ value: Any?) -> [String: Any]? {
