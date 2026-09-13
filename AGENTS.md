@@ -4,7 +4,7 @@ Librebus is a self-hosted, open-source school journal. Keep Librus connectivity 
 
 ## Stack and Runtime
 
-Python 3.13, `aiohttp`, `BeautifulSoup4`, `cryptography`, SQLite, HTML/CSS/vanilla JavaScript, SwiftUI/WKWebView for the iOS client, optional `pywebview`/PyInstaller for macOS, Docker.
+Python 3.13, `aiohttp`, `BeautifulSoup4`, `cryptography`, SQLite, HTML/CSS/vanilla JavaScript, native SwiftUI/URLSession/Keychain for iOS, optional `pywebview`/PyInstaller for macOS, Docker.
 
 ## Build, Test, Run
 
@@ -20,7 +20,7 @@ Python 3.13, `aiohttp`, `BeautifulSoup4`, `cryptography`, SQLite, HTML/CSS/vanil
 
 - `librusik.py`: server and routes
 - `macos_app.py`: embedded-window macOS launcher
-- `ios/Librebus/`: SwiftUI/WKWebView client shell
+- `ios/Librebus/`: native SwiftUI app, direct Librus client, Keychain, and local cache
 - `lib/api/`: provider adapters and sessions
 - `lib/utils.py`: persistence and helpers
 - `html/`, `static/`: frontend

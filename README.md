@@ -55,9 +55,9 @@ The first app launch shows the generated administrator password in a macOS dialo
 
 ## iOS client
 
-The repository also includes a native SwiftUI client shell in `ios/`. It connects to a Librebus server and embeds the existing web interface. See [`ios/README.md`](ios/README.md) for the Xcode setup and local-network testing steps.
+The repository includes a native SwiftUI iOS app in `ios/`. It connects directly to Librus, stores credentials in the iPhone Keychain, and caches synchronized school data on-device. It does not require a Librebus server. See [`ios/README.md`](ios/README.md) for the Xcode setup.
 
-The current backend is not bundled into iOS. A signed iOS build requires the full Xcode application and Apple signing configuration.
+A signed iOS build requires the full Xcode application and Apple signing configuration.
 
 ## Configuration and data
 

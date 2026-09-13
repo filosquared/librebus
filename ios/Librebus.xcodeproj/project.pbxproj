@@ -9,15 +9,23 @@
 /* Begin PBXBuildFile section */
 		A10000000000000000000001 /* LibrebusApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000001 /* LibrebusApp.swift */; };
 		A10000000000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000002 /* ContentView.swift */; };
-		A10000000000000000000003 /* LibrebusWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000003 /* LibrebusWebView.swift */; };
+		A10000000000000000000004 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000006 /* AppModel.swift */; };
+		A10000000000000000000005 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000007 /* KeychainStore.swift */; };
+		A10000000000000000000006 /* LibrusClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000008 /* LibrusClient.swift */; };
+		A10000000000000000000007 /* LocalStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000009 /* LocalStore.swift */; };
+		A10000000000000000000008 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000010 /* Models.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		A20000000000000000000001 /* LibrebusApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrebusApp.swift; sourceTree = "<group>"; };
 		A20000000000000000000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		A20000000000000000000003 /* LibrebusWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrebusWebView.swift; sourceTree = "<group>"; };
 		A20000000000000000000004 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A20000000000000000000005 /* Librebus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Librebus.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A20000000000000000000006 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		A20000000000000000000007 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
+		A20000000000000000000008 /* LibrusClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrusClient.swift; sourceTree = "<group>"; };
+		A20000000000000000000009 /* LocalStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalStore.swift; sourceTree = "<group>"; };
+		A20000000000000000000010 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -44,8 +52,12 @@
 			children = (
 				A20000000000000000000001 /* LibrebusApp.swift */,
 				A20000000000000000000002 /* ContentView.swift */,
-				A20000000000000000000003 /* LibrebusWebView.swift */,
 				A20000000000000000000004 /* Info.plist */,
+				A20000000000000000000006 /* AppModel.swift */,
+				A20000000000000000000007 /* KeychainStore.swift */,
+				A20000000000000000000008 /* LibrusClient.swift */,
+				A20000000000000000000009 /* LocalStore.swift */,
+				A20000000000000000000010 /* Models.swift */,
 			);
 			path = Librebus;
 			sourceTree = "<group>";
@@ -127,7 +139,11 @@
 			files = (
 				A10000000000000000000001 /* LibrebusApp.swift in Sources */,
 				A10000000000000000000002 /* ContentView.swift in Sources */,
-				A10000000000000000000003 /* LibrebusWebView.swift in Sources */,
+				A10000000000000000000004 /* AppModel.swift in Sources */,
+				A10000000000000000000005 /* KeychainStore.swift in Sources */,
+				A10000000000000000000006 /* LibrusClient.swift in Sources */,
+				A10000000000000000000007 /* LocalStore.swift in Sources */,
+				A10000000000000000000008 /* Models.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
