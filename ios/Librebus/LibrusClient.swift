@@ -57,7 +57,18 @@ final class LibrusClient {
 			)
 			// portalRodzina redirects to the current OAuth authorization URL. Do
 			// not issue another OAuth GET: that creates a new OAuth session.
-			let loginURL = portalResponse.url ?? oauthURL(path: "Authorization?client_id=46")
+			let loginURL: URL
+			if let redirectedURL = portalResponse.url,
+				   redirectedURL.host == oauthBase.host,
+				   redirectedURL.path.hasPrefix("/OAuth/Authorization") {
+				loginURL = redirectedURL
+			} else {
+				// Some portal responses remain on a GET-only page instead of
+				// exposing the OAuth URL as the final response URL. In that case
+				// use the known authorization endpoint without creating a second
+				// OAuth session first.
+				loginURL = oauthURL(path: "Authorization?client_id=46")
+			}
 			let loginBody = formBody([
 				"action": "login",
 				"login": username,
