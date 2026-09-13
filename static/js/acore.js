@@ -18,36 +18,17 @@ function agou(where) {
 		gou(where);
 	}, 350);
 }
-function setCookie(user, pass) {
-	var cvalue = {
-		"name": user.split('').reverse().join(''),
-		"password": pass.split('').reverse().join('')
-	}
-	var d = new Date();
-	d.setTime(d.getTime() + (28 * 24 * 60 * 60 * 1000));
-	var expires = "expires=" + d.toUTCString();
-	document.cookie = "librusik_a=" + encodeURIComponent(JSON.stringify(cvalue)) + ";" + expires + "; path=/";
+function setCookie(user) {
+	if (user) localStorage.setItem("librebus_panel_user", user);
+	document.cookie = "librusik_a=; Max-Age=0; path=/";
 }
 function getCookie() {
-	var name = "librusik_a=";
-	var ca = document.cookie.split(";");
-	for (var i = 0; i < ca.length; i++) {
-		var c = ca[i];
-		while (c.charAt(0) == ' ') {
-			c = c.substring(1);
-		}
-		if (c.indexOf(name) == 0) {
-			let meh = JSON.parse(decodeURIComponent(c.substring(name.length, c.length)));
-			meh["name"] = meh["name"].split('').reverse().join('');
-			meh["password"] = meh["password"].split('').reverse().join('');
-			return meh;
-		}
-	}
-	return {};
+	return {"name": localStorage.getItem("librebus_panel_user") || ""};
 }
 function rmCookie() {
-	document.cookie = "librusik_a={}; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
-	agou("panel/login");
+	localStorage.removeItem("librebus_panel_user");
+	document.cookie = "librusik_a=; Max-Age=0; path=/";
+	post("panel/logout", {}, function() { agou("panel/login"); });
 }
 function bool2str(bool, stryes, strnot) {
 	return bool ? stryes : strnot;
@@ -71,21 +52,10 @@ function setmaxusers(divider) {
 	document.getElementById("maxusers").innerText = maxuserset;
 }
 function checkcookie() {
-	var cokie = getCookie();
-	if (cokie["name"] && cokie["password"]) {
-		post("panel/api", {
-			"method": "auth",
-			"name": cokie["name"],
-			"password": cokie["password"]
-		}, function(data) {
-			if (data.status == 200) {
-				setCookie(cokie["name"], cokie["password"]);
-				gou("panel");
-			}
-			else document.body.style.opacity = 1;
-		});
-	}
-	else document.body.style.opacity = 1;
+	post("panel/session", {}, function(data) {
+		if (data.status == 200) gou("panel");
+		else document.body.style.opacity = 1;
+	});
 }
 function buttons(state) {
 	var buttons = document.getElementsByTagName("button");
@@ -117,6 +87,11 @@ function rminputs() {
 }
 function post(location, data, callback) {
 	var xhr = new XMLHttpRequest();
+	var payload = Object.assign({}, data);
+	if (location === "panel/api" && payload.method !== "auth") {
+		delete payload.name;
+		delete payload.password;
+	}
 	xhr.open("POST", location, true);
 	xhr.setRequestHeader("Content-Type", "application/json");
 	xhr.timeout = 3000;
@@ -125,7 +100,7 @@ function post(location, data, callback) {
 			callback(this);
 		}
 	}
-	xhr.send(JSON.stringify(data));
+	xhr.send(JSON.stringify(payload));
 }
 function usernameit(div) {
 	input = document.getElementById(div);
@@ -171,13 +146,12 @@ function login() {
 let USERS = [];
 function refresh() {
 	var cookie = getCookie();
-	if (!cookie["name"] | !cookie["password"]) {
+	if (!cookie["name"]) {
 		rmCookie();
+		return;
 	}
 	post("panel/api", {
-		"method": "get_data",
-		"name": cookie["name"],
-		"password": cookie["password"]
+		"method": "get_data"
 	}, function(data) {
 		if (data.status == 200) {
 			var resp = JSON.parse(data.responseText);
@@ -267,39 +241,26 @@ function set_tier() {
 	let selected_tier = document.getElementById("user-tier");
 	selected_tier = selected_tier.getElementsByClassName("selected")[0].innerText.toLowerCase();
 	let user = document.getElementById("user-name").innerText;
-	let cookie = getCookie();
 	post("panel/api", {
 		"method": "changetier",
 		"username": user,
-		"tier": selected_tier,
-		"name": cookie["name"],
-		"password": cookie["password"]
+		"tier": selected_tier
 	}, function(data) {});
 }
 let conf;
 function index() {
 	buttons(false);
-	var cokie = getCookie();
-	if (!cokie["name"] | !cokie["password"]) {
-		gou("panel/login");
-	}
-	post("panel/api", {
-		"method": "auth",
-		"name": cokie["name"],
-		"password": cokie["password"]
-	}, function(data) {
+	post("panel/session", {}, function(data) {
 		if (data.status == 200) {
 			document.body.style.opacity = 1;
 			buttons();
-			setCookie(cokie["name"], cokie["password"]);
+			setCookie(getCookie()["name"]);
 			setTimeout(function() {
 				refresh();
 				autoupdate = setInterval(refresh, 4000);
 			}, 350);
 			post("panel/api", {
-				"method": "getconf",
-				"name": cokie["name"],
-				"password": cokie["password"]
+				"method": "getconf"
 			}, function(data) {
 				if (data.status == 200) {
 					conf = JSON.parse(data.responseText);
@@ -359,19 +320,12 @@ function reboot(mhm) {
 	if (!mhm) {
 		return;
 	}
-	let cookie = getCookie();
 	post("panel/api", {
-		"method": "reboot",
-		"name": cookie["name"],
-		"password": cookie["password"]
+		"method": "reboot"
 	}, function(data) {});
 	showdiv("rebootc", "reboot");
 	let pinger = setInterval(function() {
-		post("panel/api", {
-			"method": "auth",
-			"name": cookie["name"],
-			"password": cookie["password"]
-		}, function(data) {
+		post("panel/session", {}, function(data) {
 			if (data.status == 200) {
 				showdiv("reboot", "main");
 				clearInterval(pinger)
@@ -382,7 +336,6 @@ function reboot(mhm) {
 function changename() {
 	var newname = document.getElementById("newname").value;
 	var passwd = document.getElementById("namepasswd").value;
-	var cookie = getCookie();
 	if (newname.length < 4 | newname.length > 16 | passwd.length < 4 | passwd.length > 32) {
 		return;
 	}
@@ -390,13 +343,12 @@ function changename() {
 	dim("chgname");
 	post("panel/api", {
 		"method": "name",
-		"name": cookie["name"],
 		"newname": newname,
-		"password": passwd
+		"current_password": passwd
 	}, function(data) {
 		if (data.status == 200) {
 			setTimeout(rminputs, 350);
-			setCookie(newname, passwd);
+			setCookie(newname);
 			mkerr("succ", "app-settings", "Name changed", "Credentials for Panel updated successfully.");
 			showdiv("chgname", "succ");
 		}
@@ -414,7 +366,6 @@ function changepass() {
 	var newpass = document.getElementById("newpass").value;
 	var newpassconf = document.getElementById("newpassconf").value;
 	var passwd = document.getElementById("pass").value;
-	var cookie = getCookie();
 	if (newpass.length < 4 | newpass.length > 32 | passwd.length < 4 | passwd.length > 32) {
 		return;
 	}
@@ -427,13 +378,12 @@ function changepass() {
 	}
 	post("panel/api", {
 		"method": "passwd",
-		"name": cookie["name"],
 		"newpass": newpass,
-		"password": passwd
+		"current_password": passwd
 	}, function(data) {
 		if (data.status == 200) {
 			setTimeout(rminputs, 350);
-			setCookie(cookie["name"], newpass);
+			setCookie(getCookie()["name"]);
 			mkerr("succ", "app-settings", "Password changed", "Credentials for Panel updated successfully.");
 			showdiv("chgpasswd", "succ");
 		}
@@ -448,14 +398,11 @@ function changepass() {
 	});
 }
 function sendmaxusers() {
-	var cookie = getCookie();
 	buttons(false);
 	dim("dblimit");
 	post("panel/api", {
 		"method": "chgmaxusers",
-		"maxusers": maxuserset,
-		"name": cookie["name"],
-		"password": cookie["password"]
+		"maxusers": maxuserset
 	}, function(data) {
 		if (data.status == 200) {
 			setTimeout(refresh, 350);
@@ -482,14 +429,11 @@ function resetpass() {
 	showdiv("user", "resetpassc");
 }
 function delaccount() {
-	var cookie = getCookie();
 	buttons(false);
 	dim("deluserc");
 	post("panel/api", {
 		"method": "deluser",
-		"username": todelete,
-		"name": cookie["name"],
-		"password": cookie["password"]
+		"username": todelete
 	}, function(data) {
 		if (data.status == 200) {
 			refresh();
@@ -506,14 +450,11 @@ function delaccount() {
 	});
 }
 function genpasswd() {
-	var cookie = getCookie();
 	buttons(false);
 	dim("deluserc");
 	post("panel/api", {
 		"method": "genuserpass",
-		"username": tochange,
-		"name": cookie["name"],
-		"password": cookie["password"]
+		"username": tochange
 	}, function(data) {
 		if (data.status == 200) {
 			refresh();
@@ -548,12 +489,9 @@ function setBar(id, val) {
 }
 
 function setNotice() {
-	let cookie = getCookie();
 	let text = document.getElementById("mynotice").value.trim();
 	post("panel/api", {
 		"method": "setnotice",
-		"name": cookie["name"],
-		"password": cookie["password"],
 		"notice": text
 	}, function(data) {
 		if (data.status == 200) {
@@ -572,12 +510,9 @@ function clearNotice() {
 }
 
 function setContact() {
-	let cookie = getCookie();
 	let contact = document.getElementById("contact").value.trim();
 	post("panel/api", {
 		"method": "setcontact",
-		"name": cookie["name"],
-		"password": cookie["password"],
 		"contact_uri": contact
 	}, function(data) {
 		if (data.status == 200) {
@@ -596,7 +531,6 @@ function checkbox(elem) {
 	elem.classList.toggle("ed");
 }
 function setTiers() {
-	let cookie = getCookie();
 	let enable = document.getElementById("enable_tiers").classList.contains("ed")
 	let free = document.getElementById("freereq").value.trim();
 	let plus = document.getElementById("plusreq").value.trim();
@@ -604,8 +538,6 @@ function setTiers() {
 	let text = document.getElementById("tiers_text").value.trim();
 	post("panel/api", {
 		"method": "settiers",
-		"name": cookie["name"],
-		"password": cookie["password"],
 		"enable_tiers": enable,
 		"tiers_text": text,
 		"tiers_requirements": {free, plus, pro}
@@ -640,13 +572,10 @@ function setregistration(enabled, drop) {
 	b.style.color = (enabled) ? "#0F4" : "#F44";
 	let e = (enabled) ? "enabled" : "disabled";
 	b.innerText = e;
-	let cookie = getCookie();
 	if (drop) return;
 	buttons(false);
 	post("panel/api", {
 		"method": "setregistration",
-		"name": cookie["name"],
-		"password": cookie["password"],
 		"enabled": enabled
 	}, function(data) {buttons()});
 }

@@ -10,11 +10,11 @@ import traceback
 import uuid
 from datetime import datetime, date, timedelta
 from glob import glob
-from urllib.parse import unquote
 from aiohttp import web
 from lib.api import librus
 from lib.api import Librus
 from lib.api import SessionManager
+from lib.security import AuthSessionManager, hash_password, needs_rehash, verify_password
 from lib.utils import *
 from shutil import copytree
 import atexit
@@ -28,12 +28,12 @@ import atexit
 # obejście tego że pyinstaller robi nieśmieszne (odpala w temp środowisku)
 
 CONFIG_DEFAULT = {
-	"enable_registration": True,
+	"enable_registration": False,
 	"max_users": 8,
 	"name": "admin",
-	"passwd": "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918",
+	"passwd": None,
 	"port": 7777,
-	"listen_address": "0.0.0.0",
+	"listen_address": "127.0.0.1",
 	"subdirectory": "/",
 	"readable_db": False,
 	"notice": None,
@@ -57,7 +57,13 @@ config, database = setup(CONFIG_DEFAULT)
 resources = load_html_resources(config)
 LIBRUSIK_PATH = os.path.dirname(os.path.abspath(__file__)) + "/"
 SESSIONS = SessionManager(database)
+AUTH_SESSIONS = AuthSessionManager()
+PANEL_SESSIONS = AuthSessionManager()
+USER_SESSION_COOKIE = "librebus_session"
+PANEL_SESSION_COOKIE = "librebus_admin_session"
 BOOT = round(time.time())
+welcome = welcomes[0]
+greeting = greetings[0]
 
 
 async def updatetitles():
@@ -75,20 +81,48 @@ async def updatetitles():
 
 
 def updatedb():
-	beautified = json.dumps(database, indent = 4) if config["readable_db"] else json.dumps(database)
-	if open("%s/database.json" % DATA_DIR).read() != beautified:
-		open("%s/database.json" % DATA_DIR, "w").write(beautified)
+	STORE.save_users(database)
 
 def updateconf():
-	beautified = json.dumps(config, indent = 4)
-	if open("%s/config.json" % DATA_DIR).read() != beautified:
-		open("%s/config.json" % DATA_DIR, "w").write(beautified)
+	STORE.save_config(config)
 
-def auth(data):
-	if "username" in data and "password" in data:
-		if data["username"] in database:
-			return sha(data["password"]) == database[data["username"]]["passwd"]
-	return False
+def auth(data, request):
+	"""Authenticate a request using the server-side session cookie."""
+	username = AUTH_SESSIONS.get_subject(request.cookies.get(USER_SESSION_COOKIE))
+	if username not in database:
+		return False
+	if isinstance(data, dict):
+		data["username"] = username
+	return True
+
+
+def session_username(request):
+	username = AUTH_SESSIONS.get_subject(request.cookies.get(USER_SESSION_COOKIE))
+	return username if username in database else None
+
+
+def panel_auth(request):
+	return PANEL_SESSIONS.get_subject(request.cookies.get(PANEL_SESSION_COOKIE)) == "admin"
+
+
+def confirm_password(data, username):
+	return verify_password(data.get("current_password"), database[username]["passwd"])
+
+
+def set_session_cookie(resp, name, token, request):
+	resp.set_cookie(
+		name,
+		token,
+		max_age=28 * 24 * 60 * 60,
+		httponly=True,
+		secure=request.secure,
+		samesite="Lax",
+		path="/",
+	)
+
+
+def clear_session_cookie(resp, name):
+	resp.del_cookie(name, path="/")
 
 
 TIERS = ["demo", "free", "plus", "pro"]
@@ -149,7 +183,7 @@ async def mkaccount(data):
 		database[data["username"]] = {}
 		database[data["username"]]["first_name"] = userInfo["FirstName"]
 		database[data["username"]]["last_name"] = userInfo["LastName"]
-		database[data["username"]]["passwd"] = sha(data["password"])
+		database[data["username"]]["passwd"] = hash_password(data["password"])
 		database[data["username"]]["l_login"] = data["librusLogin"]
 		database[data["username"]]["l_passwd"] = encrypt(data["librusPassword"])
 		database[data["username"]]["year_starts"] = userInfo["SchoolYearStarts"]
@@ -160,7 +194,7 @@ async def mkaccount(data):
 		database[data["username"]]["confetti"] = False
 		database[data["username"]]["tier"] = TIERS[0]
 		database[data["username"]]["joined"] = datetime.now().strftime('%d %b %Y')
-		timgs = glob("static/img/profile/*")
+		timgs = glob(str(BASE_DIR / "static/img/profile/*"))
 		timg = []
 		for x in timgs:
 			if not x.endswith("/custom"):
@@ -200,6 +234,8 @@ async def api(request):
 	global database, LAST_SEEN_PEPS
 	try:
 		data = await request.json()
+		if not isinstance(data, dict):
+			return response("", 400)
 		if "method" in data and data["method"] in ["mkaccount", "delaccount", "chgpasswd", "chglibrus", "chglibruspasswd", "getstuff", "grades_cleanup", "attendances_cleanup", "confetti", "get_me", "get_notifications"]:
 			method = data["method"]
 			if method == "mkaccount":
@@ -213,20 +249,27 @@ async def api(request):
 						if checklen(data["username"], 4, 16) and checklen(data["password"], 4, 32):
 							make = await mkaccount(data)
 							if make == True:
-								return response("", 200)
+								token = AUTH_SESSIONS.create(data["username"])
+								resp = response("", 200)
+								set_session_cookie(resp, USER_SESSION_COOKIE, token, request)
+								return resp
 							return response(make, 403)
 				return response("", 400)
-			elif auth(data):
+			elif auth(data, request):
 				LAST_SEEN_PEPS[data["username"]] = int(time.time())
 				if method == "chgpasswd":
 					if "newpassword" in data and isinstance(data["newpassword"], str):
 						if not checklen(data["newpassword"], 4, 32):
 							return response("", 400)
-						database[data["username"]]["passwd"] = sha(data["newpassword"])
+						if not confirm_password(data, data["username"]):
+							return response("", 401)
+						database[data["username"]]["passwd"] = hash_password(data["newpassword"])
 						updatedb()
 						return response("", 200)
 				elif method == "chglibruspasswd":
 					if "newLibrusPassword" in data and isinstance(data["newLibrusPassword"], str):
+						if not confirm_password(data, data["username"]):
+							return response("", 401)
 						data["librusLogin"] = database[data["username"]]["l_login"]
 						data["librusPassword"] = data["newLibrusPassword"]
 						make = await scaccount(data)
@@ -268,6 +311,8 @@ async def api(request):
 						return response("", 200)
 				elif method == "chglibrus":
 					if "newLibrusLogin" in data and "newLibrusPassword" in data and isinstance(data["newLibrusLogin"], str) and isinstance(data["newLibrusPassword"], str):
+						if not confirm_password(data, data["username"]):
+							return response("", 401)
 						data["librusLogin"] = data["newLibrusLogin"]
 						data["librusPassword"] = data["newLibrusPassword"]
 						make = await scaccount(data)
@@ -297,6 +342,8 @@ async def api(request):
 						}), 200)
 					return response("", 403)
 				elif method == "delaccount":
+					if not confirm_password(data, data["username"]):
+						return response("", 401)
 					if config["enable_tiers"] and database[data["username"]]["tier"] == "demo":
 						return response("", 401)
 					demo = demo_err(data["username"])
@@ -314,17 +361,45 @@ async def api(request):
 				return response("", 400)
 			return response("", 401)
 		return response("", 400)
-	except:
-		return response(traceback.format_exc().replace(LIBRUSIK_PATH, ""), 500)
+	except Exception:
+		traceback.print_exc()
+		return response("Internal server error.", 500)
 
 async def authenticate(request):
 	try:
 		data = await request.json()
-		if auth(data):
-			return response("", 200)
+		username = data.get("username") if isinstance(data, dict) else None
+		password = data.get("password") if isinstance(data, dict) else None
+		if username in database and verify_password(password, database[username]["passwd"]):
+			if needs_rehash(database[username]["passwd"]):
+				database[username]["passwd"] = hash_password(password)
+				updatedb()
+			token = AUTH_SESSIONS.create(username)
+			resp = response("", 200)
+			set_session_cookie(resp, USER_SESSION_COOKIE, token, request)
+			return resp
 		return response("", 401)
 	except:
 		return response("", 400)
+
+async def session_status(request):
+	username = AUTH_SESSIONS.get_subject(request.cookies.get(USER_SESSION_COOKIE))
+	return response("", 200 if username in database else 401)
+
+async def logout(request):
+	AUTH_SESSIONS.revoke(request.cookies.get(USER_SESSION_COOKIE))
+	resp = response("", 200)
+	clear_session_cookie(resp, USER_SESSION_COOKIE)
+	return resp
+
+async def panel_session_status(request):
+	return response("", 200 if panel_auth(request) else 401)
+
+async def panel_logout(request):
+	PANEL_SESSIONS.revoke(request.cookies.get(PANEL_SESSION_COOKIE))
+	resp = response("", 200)
+	clear_session_cookie(resp, PANEL_SESSION_COOKIE)
+	return resp
 
 async def forgot_pass(request):
 	global database
@@ -336,7 +411,7 @@ async def forgot_pass(request):
 				if database[user]["l_login"] == data["synergia_login"]:
 					SESSIONS.save(user, librus.headers)
 					newpass = randompasswd()
-					database[user]["passwd"] = sha(newpass)
+					database[user]["passwd"] = hash_password(newpass)
 					updatedb()
 					return JSONresponse({
 						"username": user,
@@ -364,7 +439,7 @@ async def login(request):
 async def home(request):
 	try:
 		data = await request.json()
-		if auth(data):
+		if auth(data, request):
 			demo = demo_err(data["username"])
 			if demo != False: return demo
 			now = datetime.now()
@@ -404,7 +479,7 @@ async def home(request):
 async def grades(request):
 	try:
 		data = await request.json()
-		if auth(data):
+		if auth(data, request):
 			demo = demo_err(data["username"])
 			if demo != False: return demo
 			librus = Librus(SESSIONS.get(data["username"]))
@@ -517,7 +592,7 @@ async def grades(request):
 async def more(request):
 	try:
 		data = await request.json()
-		if auth(data):
+		if auth(data, request):
 			demo = demo_err(data["username"])
 			if demo != False: return demo
 			tierr = ""
@@ -533,8 +608,8 @@ async def more(request):
 async def settings(request):
 	try:
 		data = await request.json()
-		if auth(data):
-			timgs = glob("static/img/profile/*")
+		if auth(data, request):
+			timgs = glob(str(BASE_DIR / "static/img/profile/*"))
 			imgs = ""
 			if database[data["username"]]["custom_pic"]:
 				imgs += """<button onclick="setProfilePic('%s')"><img onload="loadimg(this)" src="img/profile/custom/%s"></button>""" % (database[data["username"]]["custom_pic"], database[data["username"]]["custom_pic"])
@@ -569,7 +644,7 @@ async def settings(request):
 async def timetable(request):
 	try:
 		data = await request.json()
-		if auth(data):
+		if auth(data, request):
 			demo = demo_err(data["username"])
 			if demo != False: return demo
 			librus = Librus(SESSIONS.get(data["username"]))
@@ -620,7 +695,7 @@ async def timetable(request):
 async def attendances_old(request):
 	try:
 		data = await request.json()
-		if auth(data):
+		if auth(data, request):
 			demo = demo_err(data["username"])
 			if demo != False: return demo
 			librus = Librus(SESSIONS.get(data["username"]))
@@ -675,7 +750,7 @@ async def attendances_old(request):
 async def attendances(request):
 	try:
 		data = await request.json()
-		if auth(data):
+		if auth(data, request):
 			demo = demo_err(data["username"])
 			if demo != False: return demo
 			REQ_TIER = "pro"
@@ -796,7 +871,7 @@ async def attendances(request):
 async def exams(request):
 	try:
 		data = await request.json()
-		if auth(data):
+		if auth(data, request):
 			demo = demo_err(data["username"])
 			if demo != False: return demo
 			librus = Librus(SESSIONS.get(data["username"]))
@@ -841,7 +916,7 @@ async def exams(request):
 async def freedays(request):
 	try:
 		data = await request.json()
-		if auth(data):
+		if auth(data, request):
 			demo = demo_err(data["username"])
 			if demo != False: return demo
 			librus = Librus(SESSIONS.get(data["username"]))
@@ -881,7 +956,7 @@ async def freedays(request):
 async def teacherfreedays(request):
 	try:
 		data = await request.json()
-		if auth(data):
+		if auth(data, request):
 			demo = demo_err(data["username"])
 			if demo != False: return demo
 			librus = Librus(SESSIONS.get(data["username"]))
@@ -907,7 +982,7 @@ async def teacherfreedays(request):
 async def parentteacherconferences(request):
 	try:
 		data = await request.json()
-		if auth(data):
+		if auth(data, request):
 			demo = demo_err(data["username"])
 			if demo != False: return demo
 			librus = Librus(SESSIONS.get(data["username"]))
@@ -929,7 +1004,7 @@ async def school(request):
 	global database
 	try:
 		data = await request.json()
-		if auth(data):
+		if auth(data, request):
 			demo = demo_err(data["username"])
 			if demo != False: return demo
 			librus = Librus(SESSIONS.get(data["username"]))
@@ -958,7 +1033,7 @@ async def messages(request):
 	global database
 	try:
 		data = await request.json()
-		if auth(data):
+		if auth(data, request):
 			demo = demo_err(data["username"])
 			if demo != False: return demo
 			REQ_TIER = "plus"
@@ -992,7 +1067,7 @@ async def message(request):
 	uri_full = "message/%s" % uri
 	try:
 		data = await request.json()
-		if auth(data):
+		if auth(data, request):
 			demo = demo_err(data["username"])
 			if demo != False: return demo
 			REQ_TIER = "pro"
@@ -1017,25 +1092,28 @@ async def message_download_file(request):
 	global database
 	uri = request.match_info["uri"]
 	uri = uri.replace("-", "/")
-	cookie = json.loads(unquote(request.cookies["librusik_u"]))
 	try:
-		data = {
-			"username": cookie["username"][::-1],
-			"password": cookie["password"][::-1]
-		}
-		if auth(data):
-			demo = demo_err(data["username"])
+		username = AUTH_SESSIONS.get_subject(request.cookies.get(USER_SESSION_COOKIE))
+		if username in database:
+			demo = demo_err(username)
 			if demo != False: return demo
-			if not check_tier(data["username"], "pro"):
+			if not check_tier(username, "pro"):
 				return response("", 700)
-			librus = Librus(SESSIONS.get(data["username"]))
-			if await librus.mktoken(database[data["username"]]["l_login"], decrypt(database[data["username"]]["l_passwd"])):
-				SESSIONS.save(data["username"], librus.headers)
+			librus = Librus(SESSIONS.get(username))
+			if await librus.mktoken(database[username]["l_login"], decrypt(database[username]["l_passwd"])):
+				SESSIONS.save(username, librus.headers)
 				file = await librus.download_file(uri)
-				return web.Response(body = file["content"], status = 200, headers = file["headers"])
+				if not file:
+					return response("Couldn't download the attachment.", 502)
+				content_type = file["headers"].get("Content-Type", "application/octet-stream")
+				resp = web.Response(body=file["content"], status=200, content_type=content_type)
+				if file["headers"].get("Content-Disposition"):
+					resp.headers["Content-Disposition"] = file["headers"]["Content-Disposition"]
+				return resp
 		return response("", 401)
-	except:
-		return response(traceback.format_exc().replace(LIBRUSIK_PATH, ""), 500)
+	except Exception:
+		traceback.print_exc()
+		return response("Internal server error.", 500)
 
 
 ####################################################################################################################################################################################################
@@ -1043,116 +1121,143 @@ async def message_download_file(request):
 async def panelapi(request):
 	try:
 		data = await request.json()
-		if "name" in data and "password" in data and "method" in data:
-			if data["name"] == config["name"] and sha(data["password"]) == config["passwd"]:
-				if data["method"] == "get_data":
-					uptime = round(time.time()) - BOOT
-					users = list()
-					for x in database:
-						last_seen = -1
-						if x in LAST_SEEN_PEPS:
-							last_seen = LAST_SEEN_PEPS[x]
-						pic = database[x]["profile_pic"]
-						if database[x]["profile_pic"] == database[x]["custom_pic"]:
-							pic = f"custom/{pic}"
-						users.append({
-							"first_name": database[x]["first_name"],
-							"last_name": database[x]["last_name"],
-							"username": x,
-							"pic": pic,
-							"last_seen": last_seen,
-							"joined": database[x]["joined"],
-							"tier": database[x]["tier"],
-							"demotier": demoleft(x)
-						})
-					maxusers = config["max_users"]
-					db_usage = round(len(users) / maxusers * 100)
-					db_size = round(os.stat("%s/database.json" % DATA_DIR).st_size / 10) / 100
-					return JSONresponse({
-						"users": users[::-1],
-						"max_users": maxusers,
-						"db_usage": db_usage,
-						"uptime": uptime,
-						"db_size": db_size,
-						"host": host
-					}, 200)
-				elif data["method"] == "auth":
-					return response("", 200)
-				elif data["method"] == "passwd":
-					if "newpass" in data and isinstance(data["newpass"], str) and checklen(data["newpass"], 4, 32):
-						config["passwd"] = sha(data["newpass"])
-						updateconf()
-						return response("", 200)
-				elif data["method"] == "name":
-					if "newname" in data and isinstance(data["newname"], str) and checklen(data["newname"], 4, 16):
-						reg = re.compile("[a-z0-9]+")
-						if not reg.fullmatch(data["newname"]):
-							return response("", 400)
-						config["name"] = data["newname"]
-						updateconf()
-						return response("", 200)
-				elif data["method"] == "reboot":
-					raise SystemExit
-				elif data["method"] == "chgmaxusers":
-					if "maxusers" in data and isinstance(data["maxusers"], int) and data["maxusers"] <= 128 and data["maxusers"] >= 1:
-						config["max_users"] = data["maxusers"]
-						updateconf()
-						return response("", 200)
-				elif data["method"] == "deluser":
-					if "username" in data and isinstance(data["username"], str):
-						if data["username"] in database:
-							if database[data["username"]]["custom_pic"]:
-								os.remove("%s/%s" % (PROFILE_PIC_DIR, database[data["username"]]["custom_pic"]))
-							del database[data["username"]]
-							updatedb()
-							return response("", 200)
-						return response("", 403)
-				elif data["method"] == "changetier":
-					if "username" in data and isinstance(data["username"], str) and "tier" in data and data["tier"] in TIERS:
-						if data["username"] in database:
-							database[data["username"]]["tier"] = data["tier"]
-							updatedb()
-							return response("", 200)
-						return response("", 403)
-				elif data["method"] == "genuserpass":
-					if "username" in data and isinstance(data["username"], str):
-						if data["username"] in database:
-							newpassw = randompasswd()
-							database[data["username"]]["passwd"] = sha(newpassw)
-							updatedb()
-							return response(newpassw, 200)
-						return response("", 403)
-				elif data["method"] == "getconf":
-						return JSONresponse(config, 200)
-				elif data["method"] == "setnotice":
-					if "notice" in data and isinstance(data["notice"], str):
-						config["notice"] = data["notice"] if data["notice"] != "" else None
-						updateconf()
-						return response("", 200)
-				elif data["method"] == "setcontact":
-					if "contact_uri" in data and isinstance(data["contact_uri"], str):
-						config["contact_uri"] = data["contact_uri"]
-						updateconf()
-						return response("", 200)
-				elif data["method"] == "settiers":
-					if "enable_tiers" in data and isinstance(data["enable_tiers"], bool) and "tiers_text" in data and isinstance(data["tiers_text"], str) and "tiers_requirements" in data and isinstance(data["tiers_requirements"], dict):
-						config["enable_tiers"] = data["enable_tiers"]
-						config["tiers_text"] = data["tiers_text"]
-						config["tiers_requirements"] = data["tiers_requirements"]
-						updateconf()
-						return response("", 200)
-				elif data["method"] == "setregistration":
-					if "enabled" in data and isinstance(data["enabled"], bool):
-						config["enable_registration"] = data["enabled"]
-						updateconf()
-						return response("", 200)
-				return response("", 400)
+		if not isinstance(data, dict) or "method" not in data:
+			return response("", 400)
+		if data["method"] == "auth":
+			name = data.get("name")
+			password = data.get("password")
+			if name == config["name"] and verify_password(password, config["passwd"]):
+				if needs_rehash(config["passwd"]):
+					config["passwd"] = hash_password(password)
+					updateconf()
+				token = PANEL_SESSIONS.create("admin")
+				resp = response("", 200)
+				set_session_cookie(resp, PANEL_SESSION_COOKIE, token, request)
+				return resp
 			return response("", 401)
+		if not panel_auth(request):
+			return response("", 401)
+		if data["method"] == "get_data":
+			uptime = round(time.time()) - BOOT
+			users = []
+			for username, user in database.items():
+				last_seen = LAST_SEEN_PEPS.get(username, -1)
+				pic = user["profile_pic"]
+				if user["profile_pic"] == user["custom_pic"]:
+					pic = f"custom/{pic}"
+				users.append({
+					"first_name": user["first_name"],
+					"last_name": user["last_name"],
+					"username": username,
+					"pic": pic,
+					"last_seen": last_seen,
+					"joined": user["joined"],
+					"tier": user["tier"],
+					"demotier": demoleft(username)
+				})
+			maxusers = config["max_users"]
+			db_usage = round(len(users) / maxusers * 100)
+			db_size = round(os.stat(STORE.path).st_size / 10) / 100
+			return JSONresponse({
+				"users": users[::-1],
+				"max_users": maxusers,
+				"db_usage": db_usage,
+				"uptime": uptime,
+				"db_size": db_size,
+				"host": host
+			}, 200)
+		if data["method"] == "passwd":
+			if not isinstance(data.get("newpass"), str) or not checklen(data["newpass"], 4, 32):
+				return response("", 400)
+			if not verify_password(data.get("current_password"), config["passwd"]):
+				return response("", 401)
+			config["passwd"] = hash_password(data["newpass"])
+			updateconf()
+			return response("", 200)
+		if data["method"] == "name":
+			if not isinstance(data.get("newname"), str) or not checklen(data["newname"], 4, 16):
+				return response("", 400)
+			if not verify_password(data.get("current_password"), config["passwd"]):
+				return response("", 401)
+			if not re.fullmatch("[a-z0-9]+", data["newname"]):
+				return response("", 400)
+			config["name"] = data["newname"]
+			updateconf()
+			return response("", 200)
+		if data["method"] == "reboot":
+			raise SystemExit
+		if data["method"] == "chgmaxusers":
+			if isinstance(data.get("maxusers"), int) and 1 <= data["maxusers"] <= 128:
+				config["max_users"] = data["maxusers"]
+				updateconf()
+				return response("", 200)
+		if data["method"] == "deluser":
+			username = data.get("username")
+			if not isinstance(username, str):
+				return response("", 400)
+			if username not in database:
+				return response("", 403)
+			custom_pic = database[username]["custom_pic"]
+			if custom_pic:
+				pic_path = os.path.join(PROFILE_PIC_DIR, custom_pic)
+				if os.path.isfile(pic_path):
+					os.remove(pic_path)
+			del database[username]
+			updatedb()
+			return response("", 200)
+		if data["method"] == "changetier":
+			username = data.get("username")
+			if not isinstance(username, str) or data.get("tier") not in TIERS:
+				return response("", 400)
+			if username not in database:
+				return response("", 403)
+			database[username]["tier"] = data["tier"]
+			updatedb()
+			return response("", 200)
+		if data["method"] == "genuserpass":
+			username = data.get("username")
+			if not isinstance(username, str):
+				return response("", 400)
+			if username not in database:
+				return response("", 403)
+			newpassw = randompasswd()
+			database[username]["passwd"] = hash_password(newpassw)
+			updatedb()
+			return response(newpassw, 200)
+		if data["method"] == "getconf":
+			public_config = dict(config)
+			public_config.pop("passwd", None)
+			return JSONresponse(public_config, 200)
+		if data["method"] == "setnotice":
+			if isinstance(data.get("notice"), str):
+				config["notice"] = data["notice"] or None
+				updateconf()
+				return response("", 200)
+		if data["method"] == "setcontact":
+			if isinstance(data.get("contact_uri"), str):
+				config["contact_uri"] = data["contact_uri"]
+				updateconf()
+				return response("", 200)
+		if data["method"] == "settiers":
+			if (isinstance(data.get("enable_tiers"), bool)
+					and isinstance(data.get("tiers_text"), str)
+					and isinstance(data.get("tiers_requirements"), dict)):
+				config["enable_tiers"] = data["enable_tiers"]
+				config["tiers_text"] = data["tiers_text"]
+				config["tiers_requirements"] = data["tiers_requirements"]
+				updateconf()
+				return response("", 200)
+		if data["method"] == "setregistration":
+			if isinstance(data.get("enabled"), bool):
+				config["enable_registration"] = data["enabled"]
+				updateconf()
+				return response("", 200)
 		return response("", 400)
 	except SystemExit:
 		raise SystemExit
-	except:
-		return response(traceback.format_exc().replace(LIBRUSIK_PATH, ""), 500)
+	except Exception:
+		traceback.print_exc()
+		return response("Internal server error.", 500)
 
 
 async def panel(request):
@@ -1166,29 +1271,33 @@ async def panell(request):
 async def upload_handler(request):
 	try:
 		data = await request.post()
-		if not auth(data):
+		if not auth(data, request):
 			return web.Response(text = json.dumps({"ok": False}), status = 401, headers = {'Content-Type': 'application/json'})
-		size = int(request.headers.get("Content-Length")) / 1000 / 1000
-		if data["username"] not in database or size > 10:
+		username = session_username(request)
+		if username not in database:
 			return response("File is way too big!", 401)
-		img = data["file"]
-		headers = img.headers["Content-Type"]
-		ext = img.filename.split(".")[-1]
-		if headers not in ["image/png", "image/jpeg"]:
+		img = data.get("file")
+		if img is None or not hasattr(img, "file"):
+			return response("File is invalid!", 400)
+		content_type = img.headers.get("Content-Type", "")
+		content = img.file.read()
+		if len(content) > 4 * 1024 * 1024:
+			return response("File is way too big!", 413)
+		is_png = content_type == "image/png" and content.startswith(b"\x89PNG\r\n\x1a\n")
+		is_jpeg = content_type == "image/jpeg" and content.startswith(b"\xff\xd8\xff")
+		if not (is_png or is_jpeg):
 			return response("Attached file is not a photo.", 400)
-		uid = str(uuid.uuid1())
-		filename = uid[0:uid.rindex("-")]
-		filename = "%s.%s" % (filename.replace("-", ""), ext)
+		filename = f"{uuid.uuid4().hex}.{'png' if is_png else 'jpg'}"
 		if not os.path.exists(PROFILE_PIC_DIR):
 			os.mkdir(PROFILE_PIC_DIR)
 		with open(os.path.join(PROFILE_PIC_DIR, filename), "wb") as f:
-			f.write(img.file.read())
-		if database[data["username"]]["custom_pic"]:
-			oldpic = "%s/%s" % (PROFILE_PIC_DIR, database[data["username"]]["custom_pic"])
+			f.write(content)
+		if database[username]["custom_pic"]:
+			oldpic = "%s/%s" % (PROFILE_PIC_DIR, database[username]["custom_pic"])
 			if os.path.isfile(oldpic):
 				os.remove(oldpic)
-		database[data["username"]]["custom_pic"] = filename
-		database[data["username"]]["profile_pic"] = filename
+		database[username]["custom_pic"] = filename
+		database[username]["profile_pic"] = filename
 		updatedb()
 		return response("", 200)
 	except:
@@ -1198,13 +1307,19 @@ async def upload_handler(request):
 async def set_profile_pic(request):
 	try:
 		data = await request.json()
-		if auth(data):
-			database[data["username"]]["profile_pic"] = data["picture"]
+		if auth(data, request):
+			picture = data.get("picture")
+			available = {os.path.basename(path) for path in glob(str(BASE_DIR / "static/img/profile/*.png"))}
+			custom = database[data["username"]]["custom_pic"]
+			if picture != custom and picture not in available:
+				return response("Invalid profile picture.", 400)
+			database[data["username"]]["profile_pic"] = picture
 			updatedb()
 			return response("", 200)
 		return response("", 401)
-	except:
-		return response(traceback.format_exc().replace(LIBRUSIK_PATH, ""), 500)
+	except Exception:
+		traceback.print_exc()
+		return response("Internal server error.", 500)
 
 
 @web.middleware
@@ -1221,7 +1336,8 @@ async def error_middleware(request, handler):
 		respons.headers["Cache-Control"] = "no-cache"
 		return respons
 	except Exception as ex:
-		exc = traceback.format_exc().replace(LIBRUSIK_PATH, "")
+		traceback.print_exc()
+		exc = "Request failed."
 		try:
 			status = ex.status
 		except AttributeError:
@@ -1249,6 +1365,8 @@ app.add_routes([
 	web.route('GET', '/', index),
 	web.route('GET', '/login', login),
 	web.route('POST', '/auth', authenticate),
+	web.route('POST', '/session', session_status),
+	web.route('POST', '/logout', logout),
 	web.route('POST', '/api', api),
 	web.route('POST', '/home', home),
 	web.route('POST', '/grades', grades),
@@ -1269,28 +1387,48 @@ app.add_routes([
 	web.route('GET', '/message_download_file/{uri}', message_download_file),
 	web.route('GET', '/panel', panel),
 	web.route('GET', '/panel/login', panell),
+	web.route('POST', '/panel/session', panel_session_status),
+	web.route('POST', '/panel/logout', panel_logout),
 	web.route('POST', '/panel/api', panelapi),
 	web.route("POST", "/api/uploadProfilePic", upload_handler),
 	web.route("POST", "/api/setProfilePic", set_profile_pic),
 	web.route("POST", "/api/forgotPassword", forgot_pass),
 	web.static('/img/profile/custom', PROFILE_PIC_DIR),
-	web.static('/', 'static')
+	web.static('/', str(BASE_DIR / 'static'))
 ])
 
-tasks = []
-
-if config["ssl"]:
-	ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-	ssl_context.load_cert_chain(config["pubkey"], config["privkey"])
-	tasks.append(web._run_app(app, host=config["listen_address"], port = config["port"], ssl_context = ssl_context))
-else:
-	tasks.append(web._run_app(app, host=config["listen_address"], port = config["port"]))
-
-tasks.append(updatetitles())
+async def run_server(open_browser=False, on_started=None):
+	"""Run Librebus until the host application asks it to stop."""
+	runner = web.AppRunner(app)
+	await runner.setup()
+	ssl_context = None
+	if config["ssl"]:
+		ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+		ssl_context.load_cert_chain(config["pubkey"], config["privkey"])
+	site = web.TCPSite(
+		runner,
+		host=config["listen_address"],
+		port=config["port"],
+		ssl_context=ssl_context,
+	)
+	await site.start()
+	title_task = asyncio.create_task(updatetitles())
+	try:
+		if on_started:
+			on_started()
+		if open_browser:
+			import webbrowser
+			scheme = "https" if config["ssl"] else "http"
+			webbrowser.open(f"{scheme}://127.0.0.1:{config['port']}{config['subdirectory']}")
+		await asyncio.Event().wait()
+	finally:
+		title_task.cancel()
+		await runner.cleanup()
 
 
 async def main():
-	await asyncio.gather(*tasks)
+	await run_server()
 
 
-asyncio.run(main())
+if __name__ == "__main__":
+	asyncio.run(main())

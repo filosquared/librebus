@@ -23,51 +23,27 @@ function agou(where) {
 		window.location.href = where;
 	}, 320);
 }
-function setCookie(user, pass) {
-	var cvalue = {
-		"username": user.split('').reverse().join(''),
-		"password": pass.split('').reverse().join('')
-	}
-	var d = new Date();
-	d.setTime(d.getTime() + (28 * 24 * 60 * 60 * 1000));
-	var expires = "expires=" + d.toUTCString();
-	document.cookie = "librusik_u=" + encodeURIComponent(JSON.stringify(cvalue)) + ";" + expires + "; path=/";
+function setCookie(user) {
+	if (user) localStorage.setItem("librebus_last_user", user);
+	document.cookie = "librusik_u=; Max-Age=0; path=/";
 }
-function getCookie(cname) {
-	var name = "librusik_u=";
-	var ca = document.cookie.split(';');
-	for (var i = 0; i < ca.length; i++) {
-		var c = ca[i];
-		while (c.charAt(0) == ' ') c = c.substring(1);
-		if (c.indexOf(name) == 0) {
-			let meh = JSON.parse(decodeURIComponent(c.substring(name.length, c.length)));
-			meh["username"] = meh["username"].split('').reverse().join('');
-			meh["password"] = meh["password"].split('').reverse().join('');
-			return meh;
-		}
-	}
-	return {};
+function getCookie() {
+	return {"username": localStorage.getItem("librebus_last_user") || ""};
 }
 function rmCookie() {
-	document.cookie = "librusik_u={}; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
-	agou("login");
+	localStorage.removeItem("librebus_last_user");
+	document.cookie = "librusik_u=; Max-Age=0; path=/";
+	post("logout", {}, function() { agou("login"); });
 }
 
 function indexpage() {
 	buttons(true);
-	var cokie = getCookie();
-	if (!cokie["username"] | !cokie["password"]) {
-		gou("login");
-		return;
-	}
 	document.body.style.opacity = 1;
-	setCookie(cokie["username"], cokie["password"]);
 	goto('home', 0, true);
 	post("api", {
-		"username": cokie["username"],
-		"password": cokie["password"],
 		"method": "get_me"
 	}, function(data) {
+		if (data.status != 200) return;
 		let resp = JSON.parse(data.responseText);
 		if (resp.confetti) konfeti();
 		getByID("tier").classList.add(resp.tier);
@@ -80,8 +56,6 @@ function indexpage() {
 		}
 	});
 	post("api", {
-		"username": cokie["username"],
-		"password": cokie["password"],
 		"method": "get_notifications"
 	}, function(data) {
 		getByID("notifications").innerHTML = ""
@@ -134,16 +108,8 @@ function darken(y) {
 
 function loginpage() {
 	rminputs();
-	var cokie = getCookie();
-	if (!cokie["username"] | !cokie["password"]) {
-		document.body.style.opacity = 1;
-		return;
-	}
 	buttons(false);
-	post("auth", {
-		"username": cokie["username"],
-		"password": cokie["password"]
-	}, function(data) {
+	post("session", {}, function(data) {
 		if (data.status == 200) gou(".");
 		else document.body.style.opacity = 1;
 		buttons();
@@ -166,6 +132,15 @@ function rminputs() {
 }
 function post(location, data, callback, timeout = 5) {
 	var xhr = new XMLHttpRequest();
+	var payload = Object.assign({}, data);
+	if (location === "api" && payload.method !== "mkaccount") {
+		delete payload.username;
+		delete payload.password;
+	}
+	if (location === "panel/api" && payload.method !== "auth") {
+		delete payload.name;
+		delete payload.password;
+	}
 	xhr.open("POST", location, true);
 	xhr.setRequestHeader("Content-Type", "application/json");
 	xhr.timeout = timeout * 1000;
@@ -174,7 +149,7 @@ function post(location, data, callback, timeout = 5) {
 			callback(this);
 		}
 	}
-	xhr.send(JSON.stringify(data));
+	xhr.send(JSON.stringify(payload));
 }
 function usernameit(div) {
 	input = getByID(div);
@@ -265,14 +240,13 @@ function delacc() {
 	if (passwor.length < 4 | passwor.length > 32 | confirmation.toLowerCase().replace(/[^a-z0-9]/g, "") != "yesiamtotallysure") return;
 	buttons(false);
 	dim("rmaccount");
-	var cookie = getCookie();
 	post("api", {
-		"username": cookie["username"],
-		"password": passwor,
+		"current_password": passwor,
 		"method": "delaccount"
 	}, function(data) {
 		if (data.status == 200) {
-			document.cookie = "librusik_u={}; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+			localStorage.removeItem("librebus_last_user");
+			post("logout", {}, function() {});
 			mkerr("succ", "succ", "Account is gone", "Come back soon!");
 			var btns = document.getElementsByTagName('button');
 			for (var i = 0; i < btns.length; i++) {
@@ -308,13 +282,12 @@ function changepasswd() {
 	var cookie = getCookie();
 	post("api", {
 		"method": "chgpasswd",
-		"username": cookie["username"],
-		"password": pasword,
+		"current_password": pasword,
 		"newpassword": newpass
 	}, function(data) {
 		if (data.status == 200) {
 			setTimeout(rminputs, 320);
-			setCookie(cookie["username"], newpass);
+			setCookie(cookie["username"]);
 			mkerr("succ", "settings", "Password changed", "You're safe.");
 			showdiv("chgpasswd", "succ")
 		}
@@ -334,11 +307,9 @@ function newspass() {
 	if (newpass.length < 4 | newpass.length > 32 | pass.length < 4 | pass.length > 32) return;
 	buttons(false);
 	dim("newsynergiapass");
-	var cookie = getCookie();
 	post("api", {
 		"method": "chglibruspasswd",
-		"username": cookie["username"],
-		"password": pass,
+		"current_password": pass,
 		"newLibrusPassword": newpass
 	}, function(data) {
 		if (data.status == 200) {
@@ -367,11 +338,9 @@ function newsaccount() {
 	if (newlogin.length < 4 | newlogin.length > 32 | newpass.length < 4 | newpass.length > 32 | pass.length < 4 | pass.length > 32) return;
 	buttons(false);
 	dim("newsynergia");
-	var cookie = getCookie();
 	post("api", {
 		"method": "chglibrus",
-		"username": cookie["username"],
-		"password": pass,
+		"current_password": pass,
 		"newLibrusLogin": newlogin,
 		"newLibrusPassword": newpass
 	}, function(data) {
@@ -450,11 +419,8 @@ function headchoice(from, to, btn) {
 }
 function checkmsg(url) {
 	if (url !== "home") return;
-	var cokie = getCookie();
 	post("api", {
-		"method": "getstuff",
-		"username": cokie["username"],
-		"password": cokie["password"]
+		"method": "getstuff"
 	}, function(data) {
 		try {
 			getByID("datafetcher").classList.add("hidden");
@@ -517,7 +483,6 @@ function goto(url, page, force, back) {
 	}
 	div.classList.add("hidden");
 	current = page;
-	var cookie = getCookie();
 	var xhr = new XMLHttpRequest();
 	var xhrstart = (new Date()).getTime()
 	xhr.open("POST", url);
@@ -556,13 +521,9 @@ function goto(url, page, force, back) {
 		div.classList.remove("hidden");
 		buttons();
 	}
-	xhr.send(JSON.stringify({
-		"username": cookie["username"],
-		"password": cookie["password"]
-	}));
+	xhr.send(JSON.stringify({}));
 }
 function uploadPic(field) {
-	var cookie = getCookie();
 	var files = field.files;
 	var info = getByID("uploadpicbtn").getElementsByClassName("subtitle")[0];
 	info.classList.remove("err");
@@ -591,13 +552,10 @@ function uploadPic(field) {
 	var stuff = new FormData();
 	var file = field.files[0];
 	stuff.append("file", file);
-	stuff.append("username", cookie["username"]);
-	stuff.append("password", cookie["password"]);
 	xhr.send(stuff);
 }
 function setProfilePic(pic) {
 	buttons(false);
-	var cookie = getCookie();
 	var xhr = new XMLHttpRequest();
 	xhr.open("POST", "api/setProfilePic", true);
 	xhr.onload = function() {
@@ -605,8 +563,6 @@ function setProfilePic(pic) {
 		if (this.status == 200) goto('settings', 3, true, true);
 	};
 	xhr.send(JSON.stringify({
-		"username": cookie["username"],
-		"password": cookie["password"],
 		"picture": pic
 	}));
 }
@@ -658,14 +614,11 @@ function checkbox(elem) {
 	elem.classList.toggle("ed");
 }
 function featureTile(elem, action) {
-	var cokie = getCookie();
 	checkbox(elem);
 	clearTimeout(timout[action]);
 	timout[action] = setTimeout(function() {
 		post("api", {
 			"method": action,
-			"username": cokie["username"],
-			"password": cokie["password"],
 			"value": elem.getElementsByClassName("check")[0].classList.contains("ed")
 		}, function(data) {});
 	}, 1500);
@@ -697,7 +650,6 @@ function downloadMsgFile(elem, uri) {
 }
 function downloadMsgFileY(elem, uri) {
 	let filename = getByID("fname").innerText;
-    let cook = getCookie();
     let a = document.createElement('a');
     a.href = `message_download_file/${uri}`;
     a.download = filename;

@@ -1,131 +1,106 @@
-<img src="screenshots/librusik.png" alt="Preview photo" width="600"/>
+# Librebus
 
-### Check out the [wiki](https://github.com/dani3l0/librusik/wiki) for more detailed information!
+<img src="screenshots/librusik.png" alt="Librebus preview" width="600"/>
 
------
+Librebus is a self-hosted, open-source school journal for students and families. It provides a lightweight web interface for grades, attendance, timetable, homework, school days off, messages, and account settings.
+
+The included Librus/Synergia adapter is optional and uses credentials supplied by the account owner. Librebus is an independent community project; it is not affiliated with Librus. Do not expose an instance publicly without TLS, a trusted reverse proxy, and appropriate access controls.
 
 ## Features
 
-The coolest ones:
-
-📋 **Grades** with independent average calculation - works even if school has disabled it
-
-✉️ **Messages** with downloading attachments
-
-✅ **Attendances** with per-semester per-subject frequency %% calculation
-
-🏠 **School free days** with countdown to next holiday
-
-🍪 **Cookies** - you won't be logged out each time you close the browser
-
-🧹 **Grades cleanup** - removes subjects without grades from Grades page
-
-⌛ Cool **countdown gauges** on home screen
-
-🌙 **Dark theme**
-
-🎉 **Confetti**
-
------
+- Grades with independent average calculation
+- Messages and attachment downloads
+- Attendance summaries and per-semester views
+- Timetable, homework, school free days, and teacher free days
+- HttpOnly server-managed sessions
+- Dark theme and optional confetti
+- Administrator panel with registration, account, and tier controls
+- SQLite persistence with migration from older JSON installations
 
 ## Installation
 
-__1. Clone the repo:__
-```
-git clone https://github.com/dani3l0/librusik && cd librusik
-```
-
-__2. Install required dependencies:__
-
-```
+```bash
+git clone https://github.com/filosquared/librebus.git
+cd librebus
+python3 -m venv .venv
+. .venv/bin/activate
 pip install -r requirements.txt
+python3 librusik.py --skip-wizard
 ```
 
-__3. And, finally run it:__
-```
-python3 librusik.py
-```
+On first start, Librebus creates its data directory and prints a randomly generated administrator password. Open [http://localhost:7777](http://localhost:7777), visit `/panel`, sign in, and change that password immediately. New installations listen on `127.0.0.1`; set `LIBREBUS_LISTEN_ADDRESS=0.0.0.0` only when the service is intentionally being exposed through a protected network boundary.
 
-Done! Librusik is now running at [localhost:7777](http://localhost:7777).
+The interactive setup wizard can be used by omitting `--skip-wizard` on the first run.
 
------
+## macOS app
 
-## Configuration
+The macOS wrapper bundles the server and opens the interface in one native window. It stores application data in `~/Library/Application Support/Librebus`.
 
-Go to [localhost:7777/panel](http://localhost:7777/panel) to manage your Librusik instance. Default user is `admin` and password is `admin`.
-
-Interface is friendly enough to painlessly configure your Librusik instance.
-
------
-
-## Installation (Docker) 🐳
-
-If you prefer using Docker to keep your system clean, you can build and run Librusik using the included Dockerfile.
-
-__1. Build the image:__
-```bash
-docker build -t librusik .
-
-```
-
-**2. Run the container:**
-The default port is **7777**. You need to map it to your host machine.
+For development:
 
 ```bash
-docker run -d -p 7777:7777 --name librusik librusik
-
+pip install -r requirements-macos.txt
+python3 macos_app.py
 ```
 
-*Note: If you want to persist your data (config & database) so it survives container restarts, mount the `/app/data` volume:*
+To build a double-clickable `.app`:
 
 ```bash
-docker run -d -p 7777:7777 -v $(pwd)/data:/app/data --name librusik librusik
-
+pip install -r requirements-macos.txt
+./tools/build-macos-app.sh
+open dist/Librebus.app
 ```
 
-### Docker Compose
+The first app launch shows the generated administrator password in a macOS dialog. Save it and change it from the panel.
 
-Alternatively, you can use `docker-compose`. Create a `docker-compose.yml` file in the project directory:
+## iOS client
 
-```yaml
-services:
-  librusik:
-    image: librusik:latest
-    container_name: librusik
-    ports:
-      - "7777:7777"
-    volumes:
-        - ./data:/app/data
-    #   - librusik-data:/app/data
-    restart: unless-stopped
+The repository also includes a native SwiftUI client shell in `ios/`. It connects to a Librebus server and embeds the existing web interface. See [`ios/README.md`](ios/README.md) for the Xcode setup and local-network testing steps.
 
-# volumes:
-#   librusik-data:
-```
+The current backend is not bundled into iOS. A signed iOS build requires the full Xcode application and Apple signing configuration.
 
-Then simply run:
+## Configuration and data
+
+Runtime state is stored in `data/`:
+
+- `librebus.sqlite3` contains configuration and application accounts.
+- `fernet.key` encrypts stored upstream credentials and must be protected.
+- `profile_pics/` contains uploaded profile images.
+
+If `config.json` or `database.json` exists, it is migrated once into SQLite and retained as a recoverable backup. Never commit `data/`, real student information, passwords, session tokens, or provider API responses.
+
+Environment overrides:
 
 ```bash
-docker compose up -d
-
+LIBREBUS_DATA_DIR=/srv/librebus/data
+LIBREBUS_LISTEN_ADDRESS=127.0.0.1
+LIBREBUS_PORT=7777
 ```
 
-Librusik is now running at [localhost:7777](http://localhost:7777).
+Registration is disabled by default. Enable it from the administrator panel only when the instance is ready to accept new users.
 
------
+## Docker
 
-## Reporting a bug
+```bash
+docker build -t librebus .
+docker run -d --name librebus \
+  -p 7777:7777 \
+  -v "$(pwd)/data:/app/data" \
+  librebus
+```
 
-**Feel free** to open new issues when something doesn't work or you want to ask for new features/improvements.
+The container listens on all interfaces inside the container and persists state through `/app/data`. Put TLS and authentication at a reverse proxy when running it outside a trusted local network.
 
-If you encounter a bug, remember to attach some logs (exception traceback or just a detailed description).
+## Development checks
 
-Also, **[ping me somewhere](https://dani3l0.dev/#contact)** so we can test whether fixes work as intended as I have no access to Librus anymore.
+```bash
+PYTHONPYCACHEPREFIX=/tmp/librebus-pycache python3 -m compileall -q .
+python3 -m unittest discover -s tests
+git diff --check
+```
 
------
+Tests are offline and use synthetic data. Do not add live Librus credentials or real student records to the repository.
 
-## Some other words
+## License
 
-Because this was my first app written in Python, code is a terrible mess. Don't expect it to be super readable and flexible.
-
-_It just works_ (It actually worked since 2019 xD)
+Librebus is distributed under the MIT License. See [LICENSE](LICENSE).

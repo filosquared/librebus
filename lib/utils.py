@@ -8,8 +8,13 @@ import random
 import re
 import string
 import argparse
+import secrets
+import sys
+from pathlib import Path
 from cryptography.fernet import Fernet
 from aiohttp import web
+from .security import hash_password
+from .storage import SQLiteStore
 from .wizard import setup_wizard
 
 # Candy
@@ -17,10 +22,23 @@ welcomes = ["Hello", "Hi", "Hey"]
 greetings = ["How are you doing?", "Good to see you again.", "How are things?", "Librusik is awesome, isn't it?", "Too lazy to log into Synergia? :D", "Have a wonderful day!", "Nice to see you.", "Synergia still sucks? :D"]
 
 
-# Data location
-PATH = os.getcwd()
-DATA_DIR = os.path.join(PATH, "data")
-PROFILE_PIC_DIR = "%s/profile_pics" % DATA_DIR
+# Data location. Resolve bundled assets from the executable when frozen, while
+# keeping runtime data in a protected per-user directory on macOS.
+if getattr(sys, "frozen", False):
+	BASE_DIR = Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent))
+else:
+	BASE_DIR = Path(__file__).resolve().parent.parent
+PATH = str(BASE_DIR)
+if os.environ.get("LIBREBUS_DATA_DIR"):
+	DEFAULT_DATA_DIR = os.environ["LIBREBUS_DATA_DIR"]
+elif getattr(sys, "frozen", False) and sys.platform == "darwin":
+	DEFAULT_DATA_DIR = str(Path.home() / "Library" / "Application Support" / "Librebus")
+else:
+	DEFAULT_DATA_DIR = str(BASE_DIR / "data")
+DATA_DIR = DEFAULT_DATA_DIR
+PROFILE_PIC_DIR = os.path.join(DATA_DIR, "profile_pics")
+STORE = SQLiteStore(DATA_DIR)
+INITIAL_ADMIN_PASSWORD = None
 
 
 # Some constant globals
@@ -43,80 +61,80 @@ host = {
 
 # Core functions
 def setup(CONFIG_DEFAULT):
-	first_run = not os.path.exists(DATA_DIR)
-	main_folder_exists = os.path.exists(DATA_DIR)
-	profile_pic_folder_exists = os.path.exists(PROFILE_PIC_DIR)
-	first_run = first_run or not os.path.exists("%s/config.json" % DATA_DIR) or not os.path.exists("%s/database.json" % DATA_DIR) or not os.path.exists("%s/fernet.key" % DATA_DIR)
-	if not first_run:
-		config = json.loads(open("%s/config.json" % DATA_DIR, "r").read())
-		for key in CONFIG_DEFAULT:
-			if key not in config:
-				config[key] = CONFIG_DEFAULT[key]
-		database = json.loads(open("%s/database.json" % DATA_DIR, "r").read())
-	else:
-		parser = argparse.ArgumentParser()
-		parser.add_argument("--skip-wizard", action="store_true", default=False, help="Skip setup wizard on first run")
-		args = parser.parse_args()
-		new_config = CONFIG_DEFAULT
+	global INITIAL_ADMIN_PASSWORD
+	INITIAL_ADMIN_PASSWORD = None
+	data_path = Path(DATA_DIR)
+	first_run = not data_path.exists() or not (data_path / "librebus.sqlite3").exists()
+	parser = argparse.ArgumentParser()
+	parser.add_argument("--skip-wizard", action="store_true", default=False, help="Skip setup wizard on first run")
+	args, _ = parser.parse_known_args()
+	skip_wizard = args.skip_wizard or os.environ.get("LIBREBUS_SKIP_WIZARD") == "1"
 
-		if not args.skip_wizard:
-			# Start setup wizard
-			ip, port = setup_wizard()
-			new_config["listen_address"] = ip
-			new_config["port"] = port
-		else:
-			print("Seems it is the first run. Initializing data...")
-		if not main_folder_exists:
-			os.mkdir(DATA_DIR)
-		if not profile_pic_folder_exists:
-			os.mkdir(PROFILE_PIC_DIR)
-		conf = open("%s/config.json" % DATA_DIR, "w")
-		conf.write(json.dumps(new_config, indent = 4))
-		conf.close()
-		config = new_config
-		db = open("%s/database.json" % DATA_DIR, "w")
-		db.write(json.dumps({}))
-		db.close()
-		database = {}
-		k = open("%s/fernet.key" % DATA_DIR, "w")
-		k.write(base64.urlsafe_b64encode(os.urandom(32)).decode())
-		k.close()
-		os.chmod("%s/fernet.key" % DATA_DIR, 0o400)
+	config, database = STORE.load(CONFIG_DEFAULT)
+	if first_run and not skip_wizard:
+		ip, port = setup_wizard()
+		config["listen_address"] = ip
+		config["port"] = port
+	elif first_run:
+		print("Seems it is the first run. Initializing data...")
+
+	# Never ship a reusable admin/admin credential. New installations receive a
+	# random one-time credential in the process output, which the owner should
+	# change after first login.
+	legacy_admin_hash = hashlib.sha256(b"admin").hexdigest()
+	if config.get("passwd") in (None, "", legacy_admin_hash):
+		initial_password = secrets.token_urlsafe(18)
+		INITIAL_ADMIN_PASSWORD = initial_password
+		config["passwd"] = hash_password(initial_password)
+		print("Initial panel credentials")
+		print(f"  username: {config.get('name', 'admin')}")
+		print(f"  password: {initial_password}")
+		print("Change this password after signing in.")
+
+	data_path.mkdir(parents=True, exist_ok=True)
+	Path(PROFILE_PIC_DIR).mkdir(parents=True, exist_ok=True)
+	if os.environ.get("LIBREBUS_LISTEN_ADDRESS"):
+		config["listen_address"] = os.environ["LIBREBUS_LISTEN_ADDRESS"]
+	if os.environ.get("LIBREBUS_PORT"):
+		config["port"] = int(os.environ["LIBREBUS_PORT"])
+	if os.environ.get("LIBREBUS_CHECK_BROWSER") is not None:
+		config["check_browser"] = os.environ["LIBREBUS_CHECK_BROWSER"].lower() not in {"0", "false", "no"}
+	STORE.save_config(config)
+	STORE.save_users(database)
+
+	key_path = data_path / "fernet.key"
+	if not key_path.exists():
+		key_path.write_bytes(Fernet.generate_key())
+	try:
+		os.chmod(key_path, 0o400)
+	except OSError:
+		pass
 	load_encryption_keys()
 	return (config, database)
 
 def load_html_resources(config):
-    return {
-        "index": open("html/index.html", "r").read(),
-        "home": open("html/home.html", "r").read(),
-        "grades": open("html/grades.html", "r").read(),
-        "more": open("html/more.html", "r").read(),
-        "timetable": open("html/timetable.html", "r").read(),
-        "messages": open("html/messages.html", "r").read(),
-        "message": open("html/message.html", "r").read(),
-        "attendances": open("html/attendances.html", "r").read(),
-        "attendancesold": open("html/attendancesold.html", "r").read(),
-        "exams": open("html/exams.html", "r").read(),
-        "freedays": open("html/freedays.html", "r").read(),
-        "teacherfreedays": open("html/teacherfreedays.html", "r").read(),
-        "parentteacherconferences": open("html/parentteacherconferences.html", "r").read(),
-        "school": open("html/school.html", "r").read(),
-        "settings": open("html/settings.html", "r").read(),
-        "login": open("html/login.html", "r").read(),
-        "about": open("html/about.html", "r").read(),
-        "tiers": open("html/tiers.html", "r").read(),
-        "panel": open("html/panel.html", "r").read(),
-        "panellogin": open("html/panellogin.html", "r").read(),
-        "error": open("html/error.html", "r").read(),
-        "errorpage": open("html/geterror.html", "r").read(),
-    }
+	html_dir = BASE_DIR / "html"
+	return {
+		key: (html_dir / filename).read_text(encoding="utf-8")
+		for key, filename in {
+			"index": "index.html", "home": "home.html", "grades": "grades.html",
+			"more": "more.html", "timetable": "timetable.html", "messages": "messages.html",
+			"message": "message.html", "attendances": "attendances.html",
+			"attendancesold": "attendancesold.html", "exams": "exams.html",
+			"freedays": "freedays.html", "teacherfreedays": "teacherfreedays.html",
+			"parentteacherconferences": "parentteacherconferences.html", "school": "school.html",
+			"settings": "settings.html", "login": "login.html", "about": "about.html",
+			"tiers": "tiers.html", "panel": "panel.html", "panellogin": "panellogin.html",
+			"error": "error.html", "errorpage": "geterror.html"
+		}.items()
+	}
 
 
 # Encryption & passwords
 frt = None
 def load_encryption_keys():
 	global frt
-	key = open("%s/fernet.key" % DATA_DIR, "r").read()
+	key = Path(DATA_DIR, "fernet.key").read_text(encoding="utf-8")
 	frt = Fernet(key.encode())
 
 def encrypt(what):
@@ -222,5 +240,8 @@ def tierror_(REQ_TIER, backpath, button, where):
 		backpath = mkbackbtn(backpath, 2)
 	return (backpath, "Feature unavailable", "This feature is available in <div class=\"tier " + REQ_TIER + "\"></div> tier.", "<button onclick=\"goto('settings', 3, true)\" class=\"highlighted\">Upgrade tier</button>" + button)
 
-def copyable_tr(tr):
-	return """Server couldn't process your request. Here's what happened:<div class="traceback">%s</div>""" % parseDumbs(tr)
+def copyable_tr(_tr):
+	"""Log diagnostic details and return a safe public error message."""
+	if _tr:
+		print(_tr, end="")
+	return "The server couldn't complete this request. Please try again later."

@@ -1,13 +1,10 @@
 import aiohttp
 import json
-import os
 import traceback
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 
 REQUESTS = [0] * 7
-PATH_ = os.getcwd()
-
 class Librus:
 	def __init__(self, session=None):
 		self.host = "https://synergia.librus.pl/gateway/api/2.0/"
@@ -15,20 +12,17 @@ class Librus:
 		self.headers = session
 
 	async def activate_api_access(self):
-		arr_index = datetime.now().weekday()
-		status = 0
-		text = None
 		try:
 			async with aiohttp.ClientSession(cookies = self.headers) as session:
 				resp = await session.get(self.host + "Auth/TokenInfo", timeout = 5)
+				arr_index = datetime.now().weekday()
 				REQUESTS[arr_index] += 1
 				identifier = (await resp.json())["UserIdentifier"]
 				resp2 = await session.get(self.host + "Auth/UserInfo/" + identifier, timeout = 5)
 				REQUESTS[arr_index] += 1
-				return await resp2.status == 200
+				return resp2.status == 200
 		except:
-			pass
-		return {"code": status, "text": text}
+			return False
 
 	async def mktoken(self, login, passw):
 		if (await self.get_data("Me")):
@@ -235,10 +229,13 @@ class Librus:
 
 	async def get_classrooms(self):
 		d = await self.get_data("TimetableEntries")
+		if not d or "TimetableEntries" not in d:
+			return None
 		classrooms = {}
 		for x in d["TimetableEntries"]:
 			if "Classroom" in x:
-				classrooms[str(x["Classroom"]["Id"])] = x["Classroom"]["Name"]
+				classroom = x["Classroom"]
+				classrooms[str(classroom["Id"])] = classroom.get("Symbol") or classroom.get("Name") or "unknown"
 		return classrooms
 
 	async def get_timetable(self):
@@ -284,10 +281,7 @@ class Librus:
 				# Resolve Classroom
 				classroom_name = "unknown"
 				if "Classroom" in lesson:
-					try:
-						classroom_name = c[lesson["Classroom"]["Id"]]["Symbol"]
-					except (KeyError, TypeError):
-						classroom_name = "unknown"
+					classroom_name = c.get(str(lesson["Classroom"]["Id"]), "unknown")
 
 				timetable[day_name].append({
 					"Lesson": lesson["LessonNo"],
@@ -504,13 +498,13 @@ class Librus:
 					"attachments": files
 				}
 		except:
-			tr = traceback.format_exc().replace(PATH_, "")
+			traceback.print_exc()
 			return {
 				"subject": "Internal Server Error",
 				"from": "nobody",
 				"date": "",
 				"read": "failed",
-				"content": tr,
+				"content": "This message could not be loaded.",
 				"attachments": []
 			}
 
