@@ -3,6 +3,7 @@ import OSLog
 
 enum LibrusClientError: LocalizedError {
     case invalidCredentials
+    case sessionUnauthorized
     case unavailable
     case unexpectedResponse
     case malformedData
@@ -11,6 +12,8 @@ enum LibrusClientError: LocalizedError {
         switch self {
         case .invalidCredentials:
             return "Librus rejected the login details."
+        case .sessionUnauthorized:
+            return "Librus accepted the login, but rejected the Synergia API session. Try again or use the official Librus app to verify the account."
         case .unavailable:
             return "Librus is currently unavailable. Check your internet connection."
         case .unexpectedResponse, .malformedData:
@@ -77,7 +80,8 @@ final class LibrusClient {
 			}
 			let (_, accessResponse) = try await request(url: URL(string: "Auth/UserInfo/\(identifier)", relativeTo: apiBase)!.absoluteURL)
 			guard accessResponse.statusCode == 200 else {
-				throw LibrusClientError.invalidCredentials
+				if accessResponse.statusCode == 401 { throw LibrusClientError.sessionUnauthorized }
+				throw LibrusClientError.unexpectedResponse
 			}
 			return try await fetchProfile()
         } catch let error as LibrusClientError {
@@ -347,7 +351,7 @@ final class LibrusClient {
 		let url = URL(string: path, relativeTo: apiBase)!.absoluteURL
         let (data, response) = try await request(url: url)
         guard response.statusCode == 200 else {
-            if response.statusCode == 401 { throw LibrusClientError.invalidCredentials }
+            if response.statusCode == 401 { throw LibrusClientError.sessionUnauthorized }
             throw LibrusClientError.unexpectedResponse
         }
         guard let object = try? JSONSerialization.jsonObject(with: data),
