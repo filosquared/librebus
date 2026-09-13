@@ -18,6 +18,8 @@ final class AppModel: ObservableObject {
         data = store.load()
         if let credentials = keychain.load() {
             username = credentials.username
+            // Let the user read the last successful sync while a fresh login runs.
+            isAuthenticated = data.profile != nil
             Task { await restore(credentials) }
         } else {
             isReady = true
@@ -118,7 +120,11 @@ final class AppModel: ObservableObject {
             await sync()
         } catch {
             isReady = true
-            errorMessage = "Please sign in again: \(error.localizedDescription)"
+            if !isAuthenticated {
+                errorMessage = "Please sign in again: \(error.localizedDescription)"
+            } else {
+                errorMessage = "Showing your last saved data. Sync failed: \(error.localizedDescription)"
+            }
         }
     }
 

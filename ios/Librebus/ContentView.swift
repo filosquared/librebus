@@ -18,10 +18,16 @@ struct ContentView: View {
 }
 
 private struct LoginView: View {
+    private enum LoginField: Hashable {
+        case username
+        case password
+    }
+
     @EnvironmentObject private var model: AppModel
     @State private var username = ""
     @State private var password = ""
     @State private var isShowingPassword = false
+    @FocusState private var focusedField: LoginField?
 
     var body: some View {
         NavigationStack {
@@ -46,16 +52,24 @@ private struct LoginView: View {
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                             .textFieldStyle(.roundedBorder)
+                            .focused($focusedField, equals: .username)
+                            .submitLabel(.next)
+                            .onSubmit { focusedField = .password }
 
                         HStack {
-                            Group {
-                                if isShowingPassword {
-                                    TextField("Password", text: $password)
-                                } else {
-                                    SecureField("Password", text: $password)
-                                }
+                            if isShowingPassword {
+                                TextField("Password", text: $password)
+                                    .textFieldStyle(.roundedBorder)
+                                    .focused($focusedField, equals: .password)
+                                    .submitLabel(.go)
+                                    .onSubmit(signIn)
+                            } else {
+                                SecureField("Password", text: $password)
+                                    .textFieldStyle(.roundedBorder)
+                                    .focused($focusedField, equals: .password)
+                                    .submitLabel(.go)
+                                    .onSubmit(signIn)
                             }
-                            .textFieldStyle(.roundedBorder)
 
                             Button {
                                 isShowingPassword.toggle()
@@ -74,9 +88,7 @@ private struct LoginView: View {
                     }
 
                     Button {
-                        Task {
-                            await model.login(username: username.trimmingCharacters(in: .whitespacesAndNewlines), password: password)
-                        }
+                        signIn()
                     } label: {
                         HStack {
                             if model.isSyncing { ProgressView().tint(.white) }
@@ -95,7 +107,21 @@ private struct LoginView: View {
                 }
                 .padding(24)
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationBarHidden(true)
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { focusedField = nil }
+                }
+            }
+        }
+    }
+
+    private func signIn() {
+        focusedField = nil
+        Task {
+            await model.login(username: username.trimmingCharacters(in: .whitespacesAndNewlines), password: password)
         }
     }
 }

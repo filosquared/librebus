@@ -55,8 +55,16 @@ final class LibrusClient {
                 throw LibrusClientError.invalidCredentials
             }
 
-            _ = try await apiJSON("Auth/TokenInfo")
-            return try await fetchProfile()
+			let tokenInfo = try await apiJSON("Auth/TokenInfo")
+			let identifier = string(tokenInfo["UserIdentifier"], fallback: "")
+			guard !identifier.isEmpty else {
+				throw LibrusClientError.invalidCredentials
+			}
+			let (_, accessResponse) = try await request(url: URL(string: "Auth/UserInfo/\(identifier)", relativeTo: apiBase)!.absoluteURL)
+			guard accessResponse.statusCode == 200 else {
+				throw LibrusClientError.invalidCredentials
+			}
+			return try await fetchProfile()
         } catch let error as LibrusClientError {
             throw error
         } catch {
