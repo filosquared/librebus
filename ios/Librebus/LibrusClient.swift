@@ -46,15 +46,20 @@ final class LibrusClient {
 
     func login(username: String, password: String) async throws -> StudentProfile {
         do {
-            _ = try await request(url: oauthURL(path: "Authorization?client_id=46&response_type=code&scope=mydata"))
-
-			let loginURL = oauthURL(path: "Authorization?client_id=46")
+			let portalLoginURL = portalBase.appendingPathComponent("loguj/portalRodzina")
+			let (_, portalResponse) = try await request(
+				url: portalLoginURL,
+				headers: ["Referer": "https://portal.librus.pl/"]
+			)
+			// portalRodzina redirects to the current OAuth authorization URL. Do
+			// not issue another OAuth GET: that creates a new OAuth session.
+			let loginURL = portalResponse.url ?? oauthURL(path: "Authorization?client_id=46")
 			let loginBody = formBody([
 				"action": "login",
 				"login": username,
 				"pass": password
 			])
-			let (_, loginResponse) = try await request(
+			let (loginData, loginResponse) = try await request(
 				url: loginURL,
 				method: "POST",
 				body: loginBody,
@@ -63,13 +68,22 @@ final class LibrusClient {
 			guard (200..<400).contains(loginResponse.statusCode) else {
                 throw LibrusClientError.invalidCredentials
             }
-
-			let grantURL = oauthURL(path: "Authorization/Grant?client_id=46")
-			let (_, grantResponse) = try await request(url: grantURL)
-			guard (200..<400).contains(grantResponse.statusCode) else {
+			guard let loginPayload = try? JSONSerialization.jsonObject(with: loginData) as? [String: Any] else {
 				throw LibrusClientError.invalidCredentials
 			}
-			captureGrantCookies(from: grantResponse, source: grantURL)
+			if string(loginPayload["status"], fallback: "") == "error" {
+				throw LibrusClientError.invalidCredentials
+			}
+			let nextPath = string(loginPayload["goTo"], fallback: "")
+			guard !nextPath.isEmpty,
+				  let nextURL = URL(string: nextPath, relativeTo: apiBase)?.absoluteURL else {
+				throw LibrusClientError.unexpectedResponse
+			}
+			let (_, nextResponse) = try await request(url: nextURL)
+			guard (200..<400).contains(nextResponse.statusCode) else {
+				throw LibrusClientError.sessionUnauthorized
+			}
+			captureSessionCookies(for: [portalLoginURL, loginURL, nextURL, oauthBase])
 			bridgeGrantCookies(to: apiBase)
 			bridgeGrantCookies(to: portalBase)
 
@@ -414,7 +428,9 @@ final class LibrusClient {
 
 	private func bridgeGrantCookies(to destination: URL) {
 		guard let destinationHost = destination.host else { return }
-		for cookie in cookieStorage.cookies(for: oauthBase) ?? [] {
+		let sourceCookies = [oauthBase, portalBase, apiBase]
+			.flatMap { cookieStorage.cookies(for: $0) ?? [] }
+		for cookie in sourceCookies {
 			var properties: [HTTPCookiePropertyKey: Any] = [
 				.name: cookie.name,
 				.value: cookie.value,
@@ -429,26 +445,18 @@ final class LibrusClient {
 		}
 	}
 
-	private func captureGrantCookies(from response: HTTPURLResponse, source: URL) {
-		var headers: [String: String] = [:]
-		for (key, value) in response.allHeaderFields {
-			headers[String(describing: key)] = String(describing: value)
-		}
-		let responseCookies = HTTPCookie.cookies(withResponseHeaderFields: headers, for: source)
-		for cookie in responseCookies {
-			cookieStorage.setCookie(cookie)
-		}
-		let storedCookies = cookieStorage.cookies(for: source) ?? []
-		let cookies = responseCookies.isEmpty ? storedCookies : responseCookies
+	private func captureSessionCookies(for sources: [URL]) {
 		var uniqueCookies: [String: HTTPCookie] = [:]
-		for cookie in cookies {
-			uniqueCookies[cookie.name] = cookie
+		for source in sources {
+			for cookie in cookieStorage.cookies(for: source) ?? [] {
+				uniqueCookies[cookie.name] = cookie
+			}
 		}
 		grantCookieHeader = uniqueCookies.values
 			.sorted { $0.name < $1.name }
 			.map { "\($0.name)=\($0.value)" }
 			.joined(separator: "; ")
-		logger.debug("OAuth grant returned \(uniqueCookies.count, privacy: .public) unique cookies: \(uniqueCookies.keys.sorted().joined(separator: ","), privacy: .public)")
+		logger.debug("Librus login returned \(uniqueCookies.count, privacy: .public) unique session cookies: \(uniqueCookies.keys.sorted().joined(separator: ","), privacy: .public)")
 	}
 
     private func dictionary(_ value: Any?) -> [String: Any]? {
