@@ -26,6 +26,7 @@ final class LibrusClient {
     private let logger = Logger(subsystem: "com.filiplopes.Librebus", category: "network")
     private let cookieStorage: HTTPCookieStorage
     private let session: URLSession
+    private var grantCookieHeader = ""
 
     init() {
         let configuration = URLSessionConfiguration.default
@@ -65,6 +66,7 @@ final class LibrusClient {
 			guard (200..<400).contains(grantResponse.statusCode) else {
 				throw LibrusClientError.invalidCredentials
 			}
+			captureGrantCookies(from: grantResponse, source: grantURL)
 			bridgeGrantCookies(to: apiBase)
 			bridgeGrantCookies(to: portalBase)
 
@@ -369,6 +371,9 @@ final class LibrusClient {
 			var request = URLRequest(url: url)
 			request.httpMethod = method
 			request.httpBody = body
+			if !grantCookieHeader.isEmpty {
+				request.setValue(grantCookieHeader, forHTTPHeaderField: "Cookie")
+			}
 			for (key, value) in headers {
 				request.setValue(value, forHTTPHeaderField: key)
 			}
@@ -405,8 +410,7 @@ final class LibrusClient {
 
 	private func bridgeGrantCookies(to destination: URL) {
 		guard let destinationHost = destination.host else { return }
-		let grantURL = oauthBase
-		for cookie in cookieStorage.cookies(for: grantURL) ?? [] {
+		for cookie in cookieStorage.cookies(for: oauthBase) ?? [] {
 			var properties: [HTTPCookiePropertyKey: Any] = [
 				.name: cookie.name,
 				.value: cookie.value,
@@ -419,6 +423,21 @@ final class LibrusClient {
 				cookieStorage.setCookie(bridged)
 			}
 		}
+	}
+
+	private func captureGrantCookies(from response: HTTPURLResponse, source: URL) {
+		var headers: [String: String] = [:]
+		for (key, value) in response.allHeaderFields {
+			headers[String(describing: key)] = String(describing: value)
+		}
+		let responseCookies = HTTPCookie.cookies(withResponseHeaderFields: headers, for: source)
+		for cookie in responseCookies {
+			cookieStorage.setCookie(cookie)
+		}
+		let storedCookies = cookieStorage.cookies(for: source) ?? []
+		let cookies = responseCookies.isEmpty ? storedCookies : responseCookies
+		grantCookieHeader = cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
+		logger.debug("OAuth grant returned \(cookies.count, privacy: .public) cookies: \(cookies.map(\.name).joined(separator: ","), privacy: .public)")
 	}
 
     private func dictionary(_ value: Any?) -> [String: Any]? {
