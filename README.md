@@ -17,6 +17,7 @@ trusted reverse proxy.
 | Native macOS app | A single desktop app with the shared SwiftUI interface | No |
 | Native iPhone app | Direct Librus access with local caching | No |
 | Apple Watch companion | Quick timetable, grades, homework, and lesson alerts | No; paired iPhone required |
+| Native Android app | Direct Librus access with local caching | No |
 
 The native Apple apps use the school-issued **Synergia login** and keep the
 Librus password in Keychain. They do not require a Librebus server. The Watch
@@ -30,6 +31,7 @@ login or direct network client.
 - Attendance summaries and per-semester views
 - Timetable, homework, school free days, and teacher free days
 - Local-first native apps with offline cache
+- Native Android app with the same dashboard and school-data categories
 - Apple Watch companion with optional five-minute lesson-ending alerts
 - HttpOnly server-managed sessions for the web app
 - SQLite persistence with migration from older JSON installations
@@ -86,6 +88,7 @@ See the platform guides for details:
 - [iOS and shared Xcode project](ios/README.md)
 - [native macOS app](macos/README.md)
 - [Apple Watch companion and lesson alerts](watchOS/README.md)
+- [Android app](android/README.md)
 
 ### Apple Watch lesson alerts
 

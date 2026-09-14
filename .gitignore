@@ -18,3 +18,8 @@ xcuserdata
 
 # Icon Composer exports are derived from the portable .icon source.
 LibreBus Exports/
+
+# Android SDK paths are machine-specific and must not be committed.
+android/local.properties
+android/.gradle/
+android/**/build/
