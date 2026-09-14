@@ -3,11 +3,13 @@ import SwiftUI
 @main
 struct LibrebusApp: App {
     @StateObject private var model = AppModel()
+    @StateObject private var settings = AppSettings()
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(model)
+                .environmentObject(settings)
                 #if os(macOS)
                 .frame(minWidth: 520, idealWidth: 680, maxWidth: .infinity, minHeight: 620, idealHeight: 820, maxHeight: .infinity)
                 #endif

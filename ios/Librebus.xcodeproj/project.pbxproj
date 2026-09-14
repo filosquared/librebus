@@ -16,6 +16,10 @@
 		A10000000000000000000006 /* LibrusClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000008 /* LibrusClient.swift */; };
 		A10000000000000000000007 /* LocalStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000009 /* LocalStore.swift */; };
 		A10000000000000000000008 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000010 /* Models.swift */; };
+		A10000000000000000000011 /* AppSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000011 /* AppSupport.swift */; };
+		A10000000000000000000012 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000012 /* HomeView.swift */; };
+		A10000000000000000000013 /* SchoolViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000013 /* SchoolViews.swift */; };
+		A10000000000000000000014 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000014 /* SettingsView.swift */; };
 		B10000000000000000000001 /* PhoneWatchSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* PhoneWatchSync.swift */; };
 		B10000000000000000000002 /* WatchSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* WatchSnapshot.swift */; };
 		B10000000000000000000003 /* WatchSnapshotBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000003 /* WatchSnapshotBuilder.swift */; };
@@ -68,6 +72,10 @@
 		A20000000000000000000008 /* LibrusClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrusClient.swift; sourceTree = "<group>"; };
 		A20000000000000000000009 /* LocalStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalStore.swift; sourceTree = "<group>"; };
 		A20000000000000000000010 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		A20000000000000000000011 /* AppSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSupport.swift; sourceTree = "<group>"; };
+		A20000000000000000000012 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		A20000000000000000000013 /* SchoolViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchoolViews.swift; sourceTree = "<group>"; };
+		A20000000000000000000014 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		B20000000000000000000001 /* PhoneWatchSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneWatchSync.swift; sourceTree = "<group>"; };
 		B20000000000000000000002 /* WatchSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSnapshot.swift; sourceTree = "<group>"; };
 		B20000000000000000000003 /* WatchSnapshotBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSnapshotBuilder.swift; sourceTree = "<group>"; };
@@ -124,6 +132,10 @@
 				A20000000000000000000008 /* LibrusClient.swift */,
 				A20000000000000000000009 /* LocalStore.swift */,
 				A20000000000000000000010 /* Models.swift */,
+				A20000000000000000000011 /* AppSupport.swift */,
+				A20000000000000000000012 /* HomeView.swift */,
+				A20000000000000000000013 /* SchoolViews.swift */,
+				A20000000000000000000014 /* SettingsView.swift */,
 				B20000000000000000000001 /* PhoneWatchSync.swift */,
 				77A057A83056F55A0051D18E /* Media.xcassets */,
 			);
@@ -269,6 +281,10 @@
 				A10000000000000000000006 /* LibrusClient.swift in Sources */,
 				A10000000000000000000007 /* LocalStore.swift in Sources */,
 				A10000000000000000000008 /* Models.swift in Sources */,
+				A10000000000000000000011 /* AppSupport.swift in Sources */,
+				A10000000000000000000012 /* HomeView.swift in Sources */,
+				A10000000000000000000013 /* SchoolViews.swift in Sources */,
+				A10000000000000000000014 /* SettingsView.swift in Sources */,
 				B10000000000000000000001 /* PhoneWatchSync.swift in Sources */,
 				B10000000000000000000002 /* WatchSnapshot.swift in Sources */,
 				B10000000000000000000003 /* WatchSnapshotBuilder.swift in Sources */,

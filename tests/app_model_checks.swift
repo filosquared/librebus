@@ -64,6 +64,10 @@ struct LibrusCredentials { var username: String; var password: String }
         await model.login(username: "fixture-student", password: "not-a-real-password")
         precondition(model.isAuthenticated && model.data.profile != nil)
         precondition(model.data.timetableUpdatedAt != nil && model.data.gradesUpdatedAt != nil && model.data.homeworksUpdatedAt != nil)
+        model.saveNote(id: "fixture-note", text: "Remember the project", reminds: true, isNoLongerRelevant: false)
+        precondition(model.note(for: "fixture-note")?.reminds == true)
+        model.saveNote(id: "fixture-note", text: "", reminds: false, isNoLongerRelevant: false)
+        precondition(model.note(for: "fixture-note") == nil)
         let timetableDate = model.data.timetableUpdatedAt
         LibrusClient.failTimetable = true
         await model.sync()

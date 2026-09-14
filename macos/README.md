@@ -27,9 +27,12 @@ Sign in with the school-issued Synergia login, as on iOS. Email-based Konto
 LIBRUS sign-in is not supported. The Mac has its own session and does not import
 credentials from the iPhone or the older Python application.
 
-Home, Grades, Schedule, Attendance, and More use the same views as iOS. Homework
-and Messages are under More. Resize the window as needed; press Command-R to
-sync. The window opens at 680 × 820 points, with a 520 × 620 minimum.
+Home, Grades, Schedule, Messages, and More use the same views as iOS. Homework
+and Attendance are under More, while Messages is a main category. The Home
+screen shows today's remaining lessons, the Schedule day dropdown opens lesson
+details, and the gear button exposes language, app-name, and automatic-sync
+settings. Resize the window as needed; press Command-R to sync. The window
+opens at 680 × 820 points, with a 520 × 620 minimum.
 
 Credentials are saved in macOS Keychain. The cache is stored at
 `~/Library/Application Support/Librebus/school-data.json`. Signing out clears

@@ -105,23 +105,24 @@ final class PhoneWatchSync: NSObject, ObservableObject, WCSessionDelegate {
 
 struct PhoneWatchStatusView: View {
     @ObservedObject var sync: PhoneWatchSync
+    @EnvironmentObject private var settings: AppSettings
 
     var body: some View {
-        Section("Apple Watch") {
-            Toggle("Lesson-ending alerts", isOn: Binding(
+        Section(settings.text(.appleWatch)) {
+            Toggle(settings.text(.lessonAlerts), isOn: Binding(
                 get: { sync.lessonAlertsEnabled }, set: sync.setLessonAlertsEnabled
             ))
             .accessibilityIdentifier("watchLessonAlertsToggle")
-            Text("Notify your Watch 5 minutes before each lesson ends, with the next lesson, room and teacher. Open Librebus on Watch once to allow notifications. Focus and Watch notification settings control how alerts appear; the app cannot open itself.")
+            Text(settings.text(.watchAlertDescription))
                 .font(.footnote).foregroundStyle(.secondary)
             if sync.lessonAlertsEnabled {
-                Text("Teacher names are included while alerts are enabled. Disabling takes effect when the Watch receives the update.")
+                Text(settings.text(.teacherNames))
                     .font(.footnote).foregroundStyle(.secondary)
             }
             Label(sync.status, systemImage: "applewatch")
                 .font(.subheadline)
-            Button("Send latest data to Watch") { sync.sendLatest() }
-            Text("Refresh school data on this iPhone first. Your Watch receives the timetable, recent grades and upcoming homework—not your password.")
+            Button(settings.text(.sendLatestToWatch)) { sync.sendLatest() }
+            Text(settings.text(.watchDataDescription))
                 .font(.footnote).foregroundStyle(.secondary)
         }
     }

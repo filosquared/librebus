@@ -8,19 +8,25 @@ final class AppModel: ObservableObject {
     @Published private(set) var isSyncing = false
     @Published private(set) var username = ""
     @Published private(set) var data = CachedSchoolData.empty
+    @Published private(set) var notes: [SchoolNote]
+    @Published private(set) var automaticSyncEnabled: Bool
     @Published var errorMessage: String?
 
     private let keychain = KeychainStore()
     private let store = LocalStore()
+    private let notesStore = UserNotesStore()
     private var client: LibrusClient?
     private var sessionGeneration = UUID()
     private var syncingSession: UUID?
+    private var automaticSyncTask: Task<Void, Never>?
     #if os(iOS)
     let watchSync = PhoneWatchSync()
     #endif
 
     init() {
         data = store.load()
+        notes = notesStore.load()
+        automaticSyncEnabled = UserDefaults.standard.object(forKey: "automaticSyncEnabled") as? Bool ?? true
         if let credentials = keychain.load() {
             username = credentials.username
             // Let the user read the last successful sync while a fresh login runs.
@@ -33,6 +39,11 @@ final class AppModel: ObservableObject {
             isReady = true
             publishToWatch()
         }
+        startAutomaticSync()
+    }
+
+    deinit {
+        automaticSyncTask?.cancel()
     }
 
     func login(username: String, password: String) async {
@@ -124,6 +135,30 @@ final class AppModel: ObservableObject {
         isSyncing = false
     }
 
+    func setAutomaticSyncEnabled(_ enabled: Bool) {
+        automaticSyncEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: "automaticSyncEnabled")
+    }
+
+    func note(for id: String) -> SchoolNote? {
+        notes.first { $0.id == id }
+    }
+
+    func saveNote(id: String, text: String, reminds: Bool, isNoLongerRelevant: Bool) {
+        let note = SchoolNote(
+            id: id,
+            text: text,
+            reminds: reminds,
+            isNoLongerRelevant: isNoLongerRelevant,
+            updatedAt: Date()
+        )
+        notes.removeAll { $0.id == id }
+        if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || reminds || isNoLongerRelevant {
+            notes.append(note)
+        }
+        notesStore.save(notes)
+    }
+
     func loadMessage(_ summary: MessageSummary) async -> MessageDetail? {
         guard let client else { return nil }
         do {
@@ -141,9 +176,11 @@ final class AppModel: ObservableObject {
         isReady = true
         keychain.delete()
         store.clear()
+        notesStore.clear()
         client = nil
         username = ""
         data = .empty
+        notes = []
         isAuthenticated = false
         errorMessage = nil
         publishToWatch()
@@ -174,5 +211,46 @@ final class AppModel: ObservableObject {
         #if os(iOS)
         watchSync.publish(data, signedIn: isAuthenticated, accountID: sessionGeneration.uuidString)
         #endif
+    }
+
+    private func startAutomaticSync() {
+        automaticSyncTask = Task { [weak self] in
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(nanoseconds: 45 * 60 * 1_000_000_000)
+                } catch {
+                    return
+                }
+                guard !Task.isCancelled, let self else { return }
+                guard self.automaticSyncEnabled, self.isAuthenticated, !self.isSyncing else { continue }
+                await self.sync()
+            }
+        }
+    }
+}
+
+private final class UserNotesStore {
+    private let key = "librebus.schoolNotes"
+    private let encoder = JSONEncoder()
+    private let decoder = JSONDecoder()
+
+    init() {
+        encoder.dateEncodingStrategy = .iso8601
+        decoder.dateDecodingStrategy = .iso8601
+    }
+
+    func load() -> [SchoolNote] {
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let notes = try? decoder.decode([SchoolNote].self, from: data) else { return [] }
+        return notes
+    }
+
+    func save(_ notes: [SchoolNote]) {
+        guard let data = try? encoder.encode(notes) else { return }
+        UserDefaults.standard.set(data, forKey: key)
+    }
+
+    func clear() {
+        UserDefaults.standard.removeObject(forKey: key)
     }
 }

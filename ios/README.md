@@ -13,6 +13,15 @@ not automatic app launches; see the [Watch guide](../watchOS/README.md).
 
 The iOS target is a native, local-first app. It connects directly to Librus, presents grades, schedule, attendance, homework, and messages in SwiftUI, stores the Librus password in the iPhone Keychain, and caches school data in the app's private storage.
 
+The Home screen shows only today's remaining lessons and refreshes its lesson
+state as time passes. Its cards open the relevant category; tests and classwork
+are filtered from Librus homework categories. Grades can be filtered by first
+or second semester, and Schedule uses a day dropdown with tappable lesson
+details. Use the gear button in the top-right corner for the app name, Polish
+or English language, and automatic sync every 45 minutes while the app is open.
+Homework and lesson details also contain private local notes, a reminder
+preference, and a “no longer relevant” flag.
+
 No Librebus server is required. The app needs an internet connection when it signs in or synchronizes with Librus; cached data remains available between syncs.
 
 ## Build and run

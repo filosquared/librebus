@@ -46,6 +46,15 @@ struct TimetableLesson: Codable, Hashable, Identifiable {
     var classroom: String
 }
 
+enum MessageFolder: String, Codable, CaseIterable, Hashable, Identifiable {
+    case inbox
+    case sent
+    case announcements
+    case notes
+
+    var id: String { rawValue }
+}
+
 struct TimetableData: Codable, Hashable {
     var nextWeek: Bool
     var days: [String: [TimetableLesson]]
@@ -81,6 +90,37 @@ struct MessageSummary: Codable, Hashable, Identifiable {
     var sender: String
     var subject: String
     var date: String
+    var folder: MessageFolder
+
+    init(id: String, sender: String, subject: String, date: String, folder: MessageFolder = .inbox) {
+        self.id = id
+        self.sender = sender
+        self.subject = subject
+        self.date = date
+        self.folder = folder
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, sender, subject, date, folder
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        sender = try container.decode(String.self, forKey: .sender)
+        subject = try container.decode(String.self, forKey: .subject)
+        date = try container.decode(String.self, forKey: .date)
+        folder = try container.decodeIfPresent(MessageFolder.self, forKey: .folder) ?? .inbox
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(sender, forKey: .sender)
+        try container.encode(subject, forKey: .subject)
+        try container.encode(date, forKey: .date)
+        try container.encode(folder, forKey: .folder)
+    }
 }
 
 struct MessageDetail: Codable, Hashable {
@@ -88,6 +128,14 @@ struct MessageDetail: Codable, Hashable {
     var sender: String
     var date: String
     var content: String
+}
+
+struct SchoolNote: Codable, Hashable, Identifiable {
+    var id: String
+    var text: String
+    var reminds: Bool
+    var isNoLongerRelevant: Bool
+    var updatedAt: Date
 }
 
 struct CachedSchoolData: Codable {
