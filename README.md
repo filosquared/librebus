@@ -1,7 +1,5 @@
 # Librebus
 
-<img src="screenshots/librusik.png" alt="Librebus preview" width="600"/>
-
 Librebus is a self-hosted, open-source school journal for students and
 families. It provides grades, attendance, timetable, homework, school days
 off, messages, and account settings in a provider-neutral data model.
