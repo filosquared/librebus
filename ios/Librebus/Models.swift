@@ -49,6 +49,8 @@ struct TimetableLesson: Codable, Hashable, Identifiable {
 struct TimetableData: Codable, Hashable {
     var nextWeek: Bool
     var days: [String: [TimetableLesson]]
+    // Actual requested week; older caches decode this as nil.
+    var weekStart: String? = nil
 }
 
 struct AttendanceRecord: Codable, Hashable, Identifiable {
@@ -96,6 +98,9 @@ struct CachedSchoolData: Codable {
     var homeworks: [HomeworkRecord]
     var messages: [MessageSummary]
     var lastSync: Date?
+    var timetableUpdatedAt: Date? = nil
+    var gradesUpdatedAt: Date? = nil
+    var homeworksUpdatedAt: Date? = nil
 
     static let empty = CachedSchoolData(
         profile: nil,

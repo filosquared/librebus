@@ -53,10 +53,14 @@ private struct LoginView: View {
                             .foregroundStyle(.secondary)
 
                         TextField("School-issued login", text: $username)
+                            #if os(iOS)
                             .textInputAutocapitalization(.never)
+                            #endif
                             .autocorrectionDisabled()
                             .textContentType(.username)
+                            #if os(iOS)
                             .keyboardType(.asciiCapable)
+                            #endif
                             .textFieldStyle(.roundedBorder)
                             .focused($focusedField, equals: .username)
                             .submitLabel(.next)
@@ -65,7 +69,9 @@ private struct LoginView: View {
                         HStack {
                             SecureField("Password", text: $password)
                                 .textContentType(.password)
-                                .keyboardType(.asciiCapable)
+                                #if os(iOS)
+                            .keyboardType(.asciiCapable)
+                            #endif
                                 .textFieldStyle(.roundedBorder)
                                 .focused($focusedField, equals: .password)
                                 .submitLabel(.go)
@@ -93,13 +99,14 @@ private struct LoginView: View {
                     .controlSize(.large)
                     .disabled(username.isEmpty || password.isEmpty || model.isSyncing)
 
-                    Text("Your password is stored only in the iPhone's Keychain. Librebus connects directly to Librus; no separate Librebus server is required.")
+                    Text("Your password is stored only in this device's Keychain. Librebus connects directly to Librus; no separate Librebus server is required.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
                 .padding(24)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            #if os(iOS)
             .scrollDismissesKeyboard(.interactively)
             .navigationBarHidden(true)
             .toolbar {
@@ -108,6 +115,7 @@ private struct LoginView: View {
                     Button("Done") { focusedField = nil }
                 }
             }
+            #endif
         }
     }
 
@@ -193,7 +201,7 @@ private struct DashboardView: View {
 
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Label("On this iPhone", systemImage: "internaldrive")
+                            Label("On this device", systemImage: "internaldrive")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                             Spacer()
@@ -268,12 +276,12 @@ private struct GradesView: View {
                             }
                         }
                     }
-                    .listStyle(.insetGrouped)
+                    .schoolListStyle()
                 }
             }
             .navigationTitle("Grades")
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .primaryAction) {
                     Button { Task { await model.sync() } } label: {
                         Image(systemName: "arrow.clockwise")
                     }
@@ -327,14 +335,14 @@ private struct ScheduleView: View {
                             }
                         }
                     }
-                    .listStyle(.insetGrouped)
+                    .schoolListStyle()
                 } else {
                     EmptyState(title: "No timetable", message: "Your timetable will appear here after the next sync.", icon: "calendar.badge.clock")
                 }
             }
             .navigationTitle("Schedule")
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .primaryAction) {
                     Button { Task { await model.sync() } } label: { Image(systemName: "arrow.clockwise") }
                         .disabled(model.isSyncing)
                 }
@@ -414,12 +422,12 @@ private struct AttendanceView: View {
                             }
                         }
                     }
-                    .listStyle(.insetGrouped)
+                    .schoolListStyle()
                 }
             }
             .navigationTitle("Attendance")
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .primaryAction) {
                     Button { Task { await model.sync() } } label: { Image(systemName: "arrow.clockwise") }
                         .disabled(model.isSyncing)
                 }
@@ -464,8 +472,11 @@ private struct MoreView: View {
                 Section("Account") {
                     Button(role: .destructive) { model.logout() } label: { Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right") }
                 }
+                #if os(iOS)
+                PhoneWatchStatusView(sync: model.watchSync)
+                #endif
             }
-            .listStyle(.insetGrouped)
+            .schoolListStyle()
             .navigationTitle("More")
         }
     }
@@ -498,7 +509,7 @@ private struct HomeworkView: View {
                         .padding(.vertical, 6)
                     }
                 }
-                .listStyle(.insetGrouped)
+                .schoolListStyle()
             }
         }
         .navigationTitle("Homework")
@@ -528,7 +539,7 @@ private struct MessagesView: View {
                         .padding(.vertical, 5)
                     }
                 }
-                .listStyle(.insetGrouped)
+                .schoolListStyle()
             }
         }
         .navigationTitle("Messages")
@@ -559,7 +570,9 @@ private struct MessageDetailView: View {
             .padding(20)
         }
         .navigationTitle(summary.subject)
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .task {
             detail = await model.loadMessage(summary)
             isLoading = false
@@ -586,5 +599,16 @@ private struct EmptyState: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(32)
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func schoolListStyle() -> some View {
+        #if os(macOS)
+        self.listStyle(.inset)
+        #else
+        self.listStyle(.insetGrouped)
+        #endif
     }
 }

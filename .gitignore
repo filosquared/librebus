@@ -15,3 +15,6 @@ dist
 *.DS_Store
 xcuserdata
 *.xcuserstate
+
+# Icon Composer exports are derived from the portable .icon source.
+LibreBus Exports/

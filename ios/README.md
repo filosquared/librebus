@@ -1,5 +1,16 @@
 # Librebus iOS app
 
+This Xcode project also builds the native [macOS app](../macos/README.md).
+Both platforms share the SwiftUI screens and Librus client.
+
+The iPhone app also embeds an [Apple Watch companion](../watchOS/README.md).
+Use the `LibrebusWatch` scheme to run it on your paired Watch. Both targets need
+the same signing team; the Watch receives cached data from iPhone, not from Mac.
+Optional **More → Apple Watch → Lesson-ending alerts** sends the Watch a setting
+to notify five minutes before each lesson ends, with the next lesson, room and
+teacher. Allow notifications in the Watch app once. This uses Watch notifications,
+not automatic app launches; see the [Watch guide](../watchOS/README.md).
+
 The iOS target is a native, local-first app. It connects directly to Librus, presents grades, schedule, attendance, homework, and messages in SwiftUI, stores the Librus password in the iPhone Keychain, and caches school data in the app's private storage.
 
 No Librebus server is required. The app needs an internet connection when it signs in or synchronizes with Librus; cached data remains available between syncs.

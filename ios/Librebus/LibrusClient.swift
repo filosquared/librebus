@@ -269,7 +269,8 @@ final class LibrusClient {
 
         return TimetableData(
             nextWeek: calendar.component(.weekOfYear, from: today) < calendar.component(.weekOfYear, from: weekStart),
-            days: lessonsByDay
+            days: lessonsByDay,
+            weekStart: dateFrom
         )
     }
 

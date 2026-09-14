@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		77A057A93056F55A0051D18E /* Media.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 77A057A83056F55A0051D18E /* Media.xcassets */; };
+		77A057AA3056F55A0051D18E /* Media.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 77A057A83056F55A0051D18E /* Media.xcassets */; };
 		A10000000000000000000001 /* LibrebusApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000001 /* LibrebusApp.swift */; };
 		A10000000000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000002 /* ContentView.swift */; };
 		A10000000000000000000004 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000006 /* AppModel.swift */; };
@@ -14,9 +16,49 @@
 		A10000000000000000000006 /* LibrusClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000008 /* LibrusClient.swift */; };
 		A10000000000000000000007 /* LocalStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000009 /* LocalStore.swift */; };
 		A10000000000000000000008 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000010 /* Models.swift */; };
+		B10000000000000000000001 /* PhoneWatchSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* PhoneWatchSync.swift */; };
+		B10000000000000000000002 /* WatchSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* WatchSnapshot.swift */; };
+		B10000000000000000000003 /* WatchSnapshotBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000003 /* WatchSnapshotBuilder.swift */; };
+		B10000000000000000000004 /* LibrebusWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000004 /* LibrebusWatchApp.swift */; };
+		B10000000000000000000005 /* WatchSchoolStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000005 /* WatchSchoolStore.swift */; };
+		B10000000000000000000006 /* WatchSnapshotCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000006 /* WatchSnapshotCache.swift */; };
+		B10000000000000000000007 /* WatchHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000007 /* WatchHomeView.swift */; };
+		B10000000000000000000008 /* WatchDetailViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000008 /* WatchDetailViews.swift */; };
+		B10000000000000000000009 /* WatchSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* WatchSnapshot.swift */; };
+		B10000000000000000000010 /* LibrebusWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = B20000000000000000000010 /* LibrebusWatch.app */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		C10000000000000000000001 /* LessonReminder.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000001 /* LessonReminder.swift */; };
+		C10000000000000000000002 /* WatchLessonAlerts.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000002 /* WatchLessonAlerts.swift */; };
+		C10000000000000000000003 /* LessonReminderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000003 /* LessonReminderView.swift */; };
+		D10000000000000000000001 /* LibreBus.icon in Resources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000001 /* LibreBus.icon */; };
+		D10000000000000000000002 /* LibreBus.icon in Watch Resources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000001 /* LibreBus.icon */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		B90000000000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A70000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B50000000000000000000001;
+			remoteInfo = LibrebusWatch;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		B30000000000000000000004 /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				B10000000000000000000010 /* LibrebusWatch.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		77A057A83056F55A0051D18E /* Media.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Media.xcassets; sourceTree = "<group>"; };
 		A20000000000000000000001 /* LibrebusApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrebusApp.swift; sourceTree = "<group>"; };
 		A20000000000000000000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A20000000000000000000004 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -26,10 +68,31 @@
 		A20000000000000000000008 /* LibrusClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrusClient.swift; sourceTree = "<group>"; };
 		A20000000000000000000009 /* LocalStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalStore.swift; sourceTree = "<group>"; };
 		A20000000000000000000010 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		B20000000000000000000001 /* PhoneWatchSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneWatchSync.swift; sourceTree = "<group>"; };
+		B20000000000000000000002 /* WatchSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSnapshot.swift; sourceTree = "<group>"; };
+		B20000000000000000000003 /* WatchSnapshotBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSnapshotBuilder.swift; sourceTree = "<group>"; };
+		B20000000000000000000004 /* LibrebusWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrebusWatchApp.swift; sourceTree = "<group>"; };
+		B20000000000000000000005 /* WatchSchoolStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSchoolStore.swift; sourceTree = "<group>"; };
+		B20000000000000000000006 /* WatchSnapshotCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSnapshotCache.swift; sourceTree = "<group>"; };
+		B20000000000000000000007 /* WatchHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchHomeView.swift; sourceTree = "<group>"; };
+		B20000000000000000000008 /* WatchDetailViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchDetailViews.swift; sourceTree = "<group>"; };
+		B20000000000000000000009 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B20000000000000000000010 /* LibrebusWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LibrebusWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C20000000000000000000001 /* LessonReminder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonReminder.swift; sourceTree = "<group>"; };
+		C20000000000000000000002 /* WatchLessonAlerts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchLessonAlerts.swift; sourceTree = "<group>"; };
+		C20000000000000000000003 /* LessonReminderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonReminderView.swift; sourceTree = "<group>"; };
+		D20000000000000000000001 /* LibreBus.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = ../LibreBus.icon; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		A30000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B30000000000000000000002 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -43,6 +106,9 @@
 			isa = PBXGroup;
 			children = (
 				A40000000000000000000002 /* Librebus */,
+				B40000000000000000000001 /* Shared */,
+				B40000000000000000000002 /* ../watchOS/LibrebusWatch */,
+				D20000000000000000000001 /* LibreBus.icon */,
 				A40000000000000000000003 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -58,6 +124,8 @@
 				A20000000000000000000008 /* LibrusClient.swift */,
 				A20000000000000000000009 /* LocalStore.swift */,
 				A20000000000000000000010 /* Models.swift */,
+				B20000000000000000000001 /* PhoneWatchSync.swift */,
+				77A057A83056F55A0051D18E /* Media.xcassets */,
 			);
 			path = Librebus;
 			sourceTree = "<group>";
@@ -66,8 +134,34 @@
 			isa = PBXGroup;
 			children = (
 				A20000000000000000000005 /* Librebus.app */,
+				B20000000000000000000010 /* LibrebusWatch.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		B40000000000000000000001 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				B20000000000000000000002 /* WatchSnapshot.swift */,
+				B20000000000000000000003 /* WatchSnapshotBuilder.swift */,
+				C20000000000000000000001 /* LessonReminder.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		B40000000000000000000002 /* ../watchOS/LibrebusWatch */ = {
+			isa = PBXGroup;
+			children = (
+				B20000000000000000000004 /* LibrebusWatchApp.swift */,
+				B20000000000000000000005 /* WatchSchoolStore.swift */,
+				B20000000000000000000006 /* WatchSnapshotCache.swift */,
+				B20000000000000000000007 /* WatchHomeView.swift */,
+				B20000000000000000000008 /* WatchDetailViews.swift */,
+				B20000000000000000000009 /* Info.plist */,
+				C20000000000000000000002 /* WatchLessonAlerts.swift */,
+				C20000000000000000000003 /* LessonReminderView.swift */,
+			);
+			path = ../watchOS/LibrebusWatch;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -80,14 +174,33 @@
 				A30000000000000000000002 /* Sources */,
 				A30000000000000000000001 /* Frameworks */,
 				A30000000000000000000003 /* Resources */,
+				B30000000000000000000004 /* Embed Watch Content */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B90000000000000000000002 /* PBXTargetDependency */,
+			);
+			name = Librebus;
+			productName = Librebus;
+			productReference = A20000000000000000000005 /* Librebus.app */;
+			productType = "com.apple.product-type.application";
+		};
+		B50000000000000000000001 /* LibrebusWatch */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B60000000000000000000001 /* Build configuration list for PBXNativeTarget "LibrebusWatch" */;
+			buildPhases = (
+				B30000000000000000000001 /* Sources */,
+				B30000000000000000000002 /* Frameworks */,
+				B30000000000000000000003 /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
-			name = Librebus;
-			productName = Librebus;
-			productReference = A20000000000000000000005 /* Librebus.app */;
+			name = LibrebusWatch;
+			productName = LibrebusWatch;
+			productReference = B20000000000000000000010 /* LibrebusWatch.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -118,6 +231,7 @@
 			projectRoot = "";
 			targets = (
 				A50000000000000000000001 /* Librebus */,
+				B50000000000000000000001 /* LibrebusWatch */,
 			);
 		};
 /* End PBXProject section */
@@ -127,6 +241,17 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				77A057A93056F55A0051D18E /* Media.xcassets in Resources */,
+				D10000000000000000000001 /* LibreBus.icon in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B30000000000000000000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				77A057AA3056F55A0051D18E /* Media.xcassets in Resources */,
+				D10000000000000000000002 /* LibreBus.icon in Watch Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -144,10 +269,38 @@
 				A10000000000000000000006 /* LibrusClient.swift in Sources */,
 				A10000000000000000000007 /* LocalStore.swift in Sources */,
 				A10000000000000000000008 /* Models.swift in Sources */,
+				B10000000000000000000001 /* PhoneWatchSync.swift in Sources */,
+				B10000000000000000000002 /* WatchSnapshot.swift in Sources */,
+				B10000000000000000000003 /* WatchSnapshotBuilder.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B30000000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B10000000000000000000004 /* LibrebusWatchApp.swift in Sources */,
+				B10000000000000000000005 /* WatchSchoolStore.swift in Sources */,
+				B10000000000000000000006 /* WatchSnapshotCache.swift in Sources */,
+				B10000000000000000000007 /* WatchHomeView.swift in Sources */,
+				B10000000000000000000008 /* WatchDetailViews.swift in Sources */,
+				B10000000000000000000009 /* WatchSnapshot.swift in Sources */,
+				C10000000000000000000001 /* LessonReminder.swift in Sources */,
+				C10000000000000000000002 /* WatchLessonAlerts.swift in Sources */,
+				C10000000000000000000003 /* LessonReminderView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		B90000000000000000000002 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			platformFilter = ios;
+			target = B50000000000000000000001 /* LibrebusWatch */;
+			targetProxy = B90000000000000000000001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		A80000000000000000000001 /* Debug */ = {
@@ -235,19 +388,30 @@
 		A80000000000000000000003 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = LibreBus;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				INFOPLIST_FILE = Librebus/Info.plist;
+				"INFOPLIST_FILE[sdk=macosx*]" = ../macos/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = LibreBus;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.filiplopes.Librebus;
+				"PRODUCT_BUNDLE_IDENTIFIER[sdk=macosx*]" = com.filiplopes.Librebus.mac;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				RUNTIME_EXCEPTION_ALLOW_JIT = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
@@ -256,23 +420,83 @@
 		A80000000000000000000004 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = LibreBus;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				INFOPLIST_FILE = Librebus/Info.plist;
+				"INFOPLIST_FILE[sdk=macosx*]" = ../macos/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = LibreBus;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.filiplopes.Librebus;
+				"PRODUCT_BUNDLE_IDENTIFIER[sdk=macosx*]" = com.filiplopes.Librebus.mac;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				RUNTIME_EXCEPTION_ALLOW_JIT = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
 				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		B80000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = LibreBus;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = ../watchOS/LibrebusWatch/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.filiplopes.Librebus.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "watchos watchsimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 9.0;
+			};
+			name = Debug;
+		};
+		B80000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = LibreBus;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = ../watchOS/LibrebusWatch/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.filiplopes.Librebus.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "watchos watchsimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 9.0;
 			};
 			name = Release;
 		};
@@ -293,6 +517,15 @@
 			buildConfigurations = (
 				A80000000000000000000003 /* Debug */,
 				A80000000000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B60000000000000000000001 /* Build configuration list for PBXNativeTarget "LibrebusWatch" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B80000000000000000000001 /* Debug */,
+				B80000000000000000000002 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
