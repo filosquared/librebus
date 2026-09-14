@@ -1,10 +1,12 @@
 package com.filiplopes.librebus
 
+import android.app.Activity
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.runtime.SideEffect
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
@@ -101,11 +103,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.toArgb
+import androidx.core.view.WindowCompat
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -134,7 +140,24 @@ private fun LibrebusTheme(appearance: AppAppearance, content: @Composable () -> 
     }
     MaterialTheme(
         colorScheme = if (dark) darkColorScheme(primary = Color(0xFFB9C2FF), secondary = Color(0xFFB9DAD6)) else lightColorScheme(primary = Color(0xFF4657D6), secondary = Color(0xFF416A67)),
-        content = content
+        content = {
+            val view = LocalView.current
+            val window = (view.context as? Activity)?.window
+            val systemBarColor = MaterialTheme.colorScheme.surface
+
+            SideEffect {
+                window?.let {
+                    it.statusBarColor = systemBarColor.toArgb()
+                    it.navigationBarColor = systemBarColor.toArgb()
+                    WindowCompat.getInsetsController(it, view).apply {
+                        isAppearanceLightStatusBars = !dark
+                        isAppearanceLightNavigationBars = !dark
+                    }
+                }
+            }
+
+            content()
+        }
     )
 }
 
@@ -286,7 +309,20 @@ private fun BottomBar(route: Route, language: AppLanguage, select: (Route) -> Un
     )
     NavigationBar {
         items.forEach { (itemRoute, label, icon) ->
-            NavigationBarItem(selected = route == itemRoute, onClick = { select(itemRoute) }, icon = { Icon(icon, label) }, label = { Text(label) })
+            NavigationBarItem(
+                selected = route == itemRoute,
+                onClick = { select(itemRoute) },
+                icon = { Icon(icon, label) },
+                label = {
+                    Text(
+                        label,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
+            )
         }
     }
 }
