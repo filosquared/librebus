@@ -26,6 +26,15 @@ struct SettingsView: View {
                 .pickerStyle(.segmented)
             }
 
+            Section(settings.text(.appearance)) {
+                Picker(settings.text(.appearance), selection: $settings.appearance) {
+                    Text(settings.text(.appearanceSystem)).tag(AppAppearance.system)
+                    Text(settings.text(.appearanceLight)).tag(AppAppearance.light)
+                    Text(settings.text(.appearanceDark)).tag(AppAppearance.dark)
+                }
+                .pickerStyle(.segmented)
+            }
+
             Section(settings.text(.automaticSync)) {
                 Toggle(settings.text(.automaticSync), isOn: Binding(
                     get: { model.automaticSyncEnabled },

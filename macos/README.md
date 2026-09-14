@@ -33,6 +33,7 @@ screen shows today's remaining lessons, the Schedule day dropdown opens lesson
 details, and the gear button exposes language, app-name, and automatic-sync
 settings. Resize the window as needed; press Command-R to sync. The window
 opens at 680 × 820 points, with a 520 × 620 minimum.
+Appearance can be set independently to System, Light, or Dark from Settings.
 
 Credentials are saved in macOS Keychain. The cache is stored at
 `~/Library/Application Support/Librebus/school-data.json`. Signing out clears

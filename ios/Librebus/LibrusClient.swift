@@ -347,11 +347,15 @@ final class LibrusClient {
             guard !id.isEmpty else { return nil }
             let senderText = htmlText(columns[2])
             let sender = senderText.components(separatedBy: "(").first?.trimmingCharacters(in: .whitespacesAndNewlines) ?? senderText
+            let subject = htmlText(columns[3])
+            let date = htmlText(columns[4])
+            let headerText = "\(sender) \(subject) \(date)".folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            guard !headerText.contains("temat"), !headerText.contains("subject"), !headerText.contains("wyslano"), !headerText.contains("sent") else { return nil }
             return MessageSummary(
                 id: id,
                 sender: sender,
-                subject: htmlText(columns[3]),
-                date: htmlText(columns[4])
+                subject: subject,
+                date: date
             )
         }
     }

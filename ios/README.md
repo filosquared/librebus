@@ -19,6 +19,7 @@ are filtered from Librus homework categories. Grades can be filtered by first
 or second semester, and Schedule uses a day dropdown with tappable lesson
 details. Use the gear button in the top-right corner for the app name, Polish
 or English language, and automatic sync every 45 minutes while the app is open.
+The same Settings screen also supports System, Light, and Dark appearance modes.
 Homework and lesson details also contain private local notes, a reminder
 preference, and a “no longer relevant” flag.
 

@@ -6,71 +6,62 @@ struct DashboardView: View {
     @Binding var showSettings: Bool
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                TimelineView(.periodic(from: .now, by: 60)) { context in
-                    VStack(alignment: .leading, spacing: 20) {
-                        HomeHeader(profile: model.data.profile, appName: settings.appName, settings: settings)
+        ScrollView {
+            TimelineView(.periodic(from: .now, by: 60)) { context in
+                VStack(alignment: .leading, spacing: 20) {
+                    HomeHeader(profile: model.data.profile, appName: settings.appName, settings: settings)
 
-                        if let errorMessage = model.errorMessage {
-                            Label(errorMessage, systemImage: "wifi.exclamationmark")
-                                .font(.subheadline)
-                                .foregroundStyle(.orange)
-                                .padding()
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
-                        }
-
-                        TodayScheduleCard(
-                            timetable: model.data.timetable,
-                            now: context.date,
-                            settings: settings
-                        )
-
-                        Text(settings.text(.quickActions))
-                            .font(.headline)
-
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                            NavigationLink { HomeworkView(filter: .assessments) } label: {
-                                SummaryCard(title: settings.text(.tests), value: assessmentCount, icon: "checklist", color: .purple)
-                            }
-                            NavigationLink { HomeworkView(filter: .all) } label: {
-                                SummaryCard(title: settings.text(.homework), value: "(model.data.homeworks.count)", icon: "doc.text.fill", color: .orange)
-                            }
-                            NavigationLink { MessagesView() } label: {
-                                SummaryCard(title: settings.text(.messages), value: "(model.data.messages.count)", icon: "envelope.fill", color: .teal)
-                            }
-                            NavigationLink { AttendanceView() } label: {
-                                SummaryCard(title: settings.text(.attendance), value: "(absenceCount)", icon: "calendar.badge.exclamationmark", color: .red)
-                            }
-                        }
-
-                        SyncStatusCard(
-                            lastSync: model.data.lastSync,
-                            isSyncing: model.isSyncing,
-                            automaticSyncEnabled: model.automaticSyncEnabled,
-                            settings: settings,
-                            sync: syncNow
-                        )
+                    if let errorMessage = model.errorMessage {
+                        Label(errorMessage, systemImage: "wifi.exclamationmark")
+                            .font(.subheadline)
+                            .foregroundStyle(.orange)
+                            .padding()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
                     }
-                    .padding(20)
+
+                    TodayScheduleCard(
+                        timetable: model.data.timetable,
+                        now: context.date,
+                        settings: settings
+                    )
+
+                    Text(settings.text(.quickActions))
+                        .font(.headline)
+
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                        NavigationLink { HomeworkView(filter: .assessments) } label: {
+                            SummaryCard(title: settings.text(.tests), value: assessmentCount, icon: "checklist", color: .purple)
+                        }
+                        NavigationLink { HomeworkView(filter: .all) } label: {
+                            SummaryCard(title: settings.text(.homework), value: "\(model.data.homeworks.count)", icon: "doc.text.fill", color: .orange)
+                        }
+                        NavigationLink { MessagesView() } label: {
+                            SummaryCard(title: settings.text(.messages), value: "\(model.data.messages.filter { !$0.isLikelyHeaderRow }.count)", icon: "envelope.fill", color: .teal)
+                        }
+                        NavigationLink { AttendanceView() } label: {
+                            SummaryCard(title: settings.text(.attendance), value: "\(absenceCount)", icon: "calendar.badge.exclamationmark", color: .red)
+                        }
+                    }
                 }
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
             }
-            .navigationTitle(settings.appName)
-            .toolbar {
-                ToolbarItemGroup(placement: .primaryAction) {
-                    Button(action: syncNow) {
-                        Image(systemName: "arrow.triangle.2.circlepath.circle")
-                    }
-                    .accessibilityLabel(settings.text(.syncNow))
-                    .disabled(model.isSyncing)
-                    Button {
-                        showSettings = true
-                    } label: {
-                        Image(systemName: "gearshape")
-                    }
-                    .accessibilityLabel(settings.text(.settings))
+        }
+        .navigationTitle(settings.appName)
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button(action: syncNow) {
+                    Image(systemName: "arrow.triangle.2.circlepath.circle")
                 }
+                .accessibilityLabel(settings.text(.syncNow))
+                .disabled(model.isSyncing)
+                Button {
+                    showSettings = true
+                } label: {
+                    Image(systemName: "gearshape")
+                }
+                .accessibilityLabel(settings.text(.settings))
             }
         }
     }
@@ -127,7 +118,7 @@ private struct TodayScheduleCard: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(settings.text(.today))
                         .font(.headline)
-                    Text(SchoolAppDate.formatted(now))
+                    Text(SchoolAppDate.formatted(now, language: settings.language))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -213,38 +204,5 @@ struct SummaryCard: View {
         .padding(16)
         .background(color.opacity(0.1), in: RoundedRectangle(cornerRadius: 16))
         .contentShape(RoundedRectangle(cornerRadius: 16))
-    }
-}
-
-private struct SyncStatusCard: View {
-    let lastSync: Date?
-    let isSyncing: Bool
-    let automaticSyncEnabled: Bool
-    let settings: AppSettings
-    let sync: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            HStack {
-                Label(settings.text(.thisDevice), systemImage: "internaldrive")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                if let lastSync {
-                    Text(lastSync, style: .relative)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            Text(automaticSyncEnabled ? settings.text(.every45Minutes) : settings.text(.syncDescription))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Button(action: sync) {
-                Text(isSyncing ? settings.text(.syncing) : settings.text(.syncNow))
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-            .disabled(isSyncing)
-        }
     }
 }

@@ -15,6 +15,7 @@ struct ContentView: View {
             }
         }
         .tint(.indigo)
+        .preferredColorScheme(settings.appearance.colorScheme)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .environmentObject(model)
         .environmentObject(settings)
@@ -136,15 +137,25 @@ private struct MainTabView: View {
 
     var body: some View {
         TabView {
-            DashboardView(showSettings: $showingSettings)
+            NavigationStack {
+                DashboardView(showSettings: $showingSettings)
+            }
                 .tabItem { Label(settings.text(.home), systemImage: "house.fill") }
-            GradesView()
+            NavigationStack {
+                GradesView()
+            }
                 .tabItem { Label(settings.text(.grades), systemImage: "book.fill") }
-            ScheduleView()
+            NavigationStack {
+                ScheduleView()
+            }
                 .tabItem { Label(settings.text(.schedule), systemImage: "calendar") }
-            MessagesView()
+            NavigationStack {
+                MessagesView()
+            }
                 .tabItem { Label(settings.text(.messages), systemImage: "envelope.fill") }
-            MoreView(showSettings: $showingSettings)
+            NavigationStack {
+                MoreView(showSettings: $showingSettings)
+            }
                 .tabItem { Label(settings.text(.more), systemImage: "ellipsis") }
         }
         .sheet(isPresented: $showingSettings) {
@@ -164,6 +175,9 @@ extension View {
         self.listStyle(.inset)
         #else
         self.listStyle(.insetGrouped)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                Color.clear.frame(height: 84)
+            }
         #endif
     }
 }

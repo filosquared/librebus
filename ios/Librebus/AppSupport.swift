@@ -15,6 +15,22 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     }
 }
 
+enum AppAppearance: String, CaseIterable, Identifiable {
+    case system
+    case light
+    case dark
+
+    var id: String { rawValue }
+
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light: return .light
+        case .dark: return .dark
+        }
+    }
+}
+
 enum AppCopyKey: Hashable {
     case welcome, goodToSee, connecting, tagline, schoolAccount, loginHint, schoolLogin, password
     case passwordStored, signIn, signingIn, home, grades, schedule, messages, more
@@ -23,11 +39,12 @@ enum AppCopyKey: Hashable {
     case thisDevice, noGrades, firstSemester, secondSemester, average, gradesCount
     case noWeight, weight, finalGrade, details, noTimetable, selectDay, lessonNumber
     case classroom, teacher, cancelled, substitution, noAttendance, present, absent
-    case recentRecords, school, account, signOut, settings, appName, language
+    case recentRecords, school, account, signOut, settings, appName, language, appearance, appearanceSystem, appearanceLight, appearanceDark
     case automaticSync, automaticSyncDescription, every45Minutes, save, reset
     case inbox, sent, announcements, notes, noMessages, folderUnavailable, due, addedBy
     case noHomework, all, assessments, noLongerRelevant, remindMe, note, saveNote, saved
     case lessonDetails, gradeDetails, tutor, teacherRole, appleWatch, lessonAlerts, watchAlertDescription, sendLatestToWatch, watchDataDescription, teacherNames
+    case watchChecking, watchUnsupported, watchUnavailable, watchNotPaired, watchAppMissing, watchPrepareFailed, watchQueued, watchQueueFailed
     case connection
     case syncDescription, lastUpdated, className, noData, refreshOnPhone
 }
@@ -41,14 +58,21 @@ final class AppSettings: ObservableObject {
         didSet { UserDefaults.standard.set(appName, forKey: Self.appNameKey) }
     }
 
+    @Published var appearance: AppAppearance {
+        didSet { UserDefaults.standard.set(appearance.rawValue, forKey: Self.appearanceKey) }
+    }
+
     private static let languageKey = "librebus.language"
     private static let appNameKey = "librebus.appName"
+    private static let appearanceKey = "librebus.appearance"
 
     init() {
         let storedLanguage = UserDefaults.standard.string(forKey: Self.languageKey)
         let defaultLanguage = Locale.current.language.languageCode?.identifier == "pl" ? AppLanguage.polish : .english
         language = storedLanguage.flatMap(AppLanguage.init(rawValue:)) ?? defaultLanguage
         appName = UserDefaults.standard.string(forKey: Self.appNameKey) ?? "Librebus"
+        appearance = UserDefaults.standard.string(forKey: Self.appearanceKey)
+            .flatMap(AppAppearance.init(rawValue:)) ?? .system
     }
 
     func text(_ key: AppCopyKey) -> String {
@@ -74,10 +98,10 @@ private enum CopyBook {
         .noGrades: "No grades yet", .firstSemester: "First semester", .secondSemester: "Second semester", .average: "Average", .gradesCount: "grades", .noWeight: "No weight", .weight: "Weight", .finalGrade: "Final grade", .details: "Details",
         .noTimetable: "No timetable", .selectDay: "Select day", .lessonNumber: "Lesson", .classroom: "Classroom", .teacher: "Teacher", .cancelled: "Cancelled", .substitution: "Substitution",
         .noAttendance: "No attendance records", .present: "Present", .absent: "Absent", .recentRecords: "Recent records", .school: "School", .account: "Account", .signOut: "Sign out",
-        .settings: "Settings", .appName: "App name", .language: "Language", .automaticSync: "Automatic sync", .automaticSyncDescription: "Refresh school data automatically while the app is open.", .every45Minutes: "Every 45 minutes", .save: "Save", .reset: "Reset",
+        .settings: "Settings", .appName: "App name", .language: "Language", .appearance: "Appearance", .appearanceSystem: "System", .appearanceLight: "Light", .appearanceDark: "Dark", .automaticSync: "Automatic sync", .automaticSyncDescription: "Refresh school data automatically while the app is open.", .every45Minutes: "Every 45 minutes", .save: "Save", .reset: "Reset",
         .inbox: "Inbox", .sent: "Sent", .announcements: "Announcements", .notes: "Notes", .noMessages: "No messages", .folderUnavailable: "This category is not provided by the current Librus adapter yet.", .due: "Due", .addedBy: "Added by",
         .noHomework: "No homework", .all: "All", .assessments: "Tests & classwork", .noLongerRelevant: "No longer relevant", .remindMe: "Remind me", .note: "Note", .saveNote: "Save note", .saved: "Saved",
-        .lessonDetails: "Lesson details", .gradeDetails: "Grade details", .tutor: "Tutor", .teacherRole: "Tutor", .appleWatch: "Apple Watch", .lessonAlerts: "Lesson-ending alerts", .watchAlertDescription: "Notify your Watch 5 minutes before each lesson ends, with the next lesson, room and teacher. Open Librebus on Watch once to allow notifications.", .sendLatestToWatch: "Send latest data to Watch", .watchDataDescription: "Refresh school data on this iPhone first. Your Watch receives the timetable, recent grades and upcoming homework—not your password.", .teacherNames: "Teacher names are included while alerts are enabled. Disabling takes effect when the Watch receives the update.", .connection: "Connection", .syncDescription: "Refreshes all available school data.", .lastUpdated: "Last updated", .className: "Class", .noData: "No data", .refreshOnPhone: "Refresh school data on this iPhone first."
+        .lessonDetails: "Lesson details", .gradeDetails: "Grade details", .tutor: "Tutor", .teacherRole: "Tutor", .appleWatch: "Apple Watch", .lessonAlerts: "Lesson-ending alerts", .watchAlertDescription: "Notify your Watch 5 minutes before each lesson ends, with the next lesson, room and teacher. Open Librebus on Watch once to allow notifications.", .sendLatestToWatch: "Send latest data to Watch", .watchDataDescription: "Refresh school data on this iPhone first. Your Watch receives the timetable, recent grades and upcoming homework—not your password.", .teacherNames: "Teacher names are included while alerts are enabled. Disabling takes effect when the Watch receives the update.", .watchChecking: "Checking Apple Watch…", .watchUnsupported: "Apple Watch is not supported on this device.", .watchUnavailable: "Watch connection unavailable. Open both apps and try again.", .watchNotPaired: "Pair an Apple Watch with this iPhone.", .watchAppMissing: "Install Librebus using the iPhone’s Watch app.", .watchPrepareFailed: "Could not prepare Watch data. Try syncing again.", .watchQueued: "Latest snapshot queued for Apple Watch.", .watchQueueFailed: "Watch sync could not be queued. Open both apps and try again.", .connection: "Connection", .syncDescription: "Refreshes all available school data.", .lastUpdated: "Last updated", .className: "Class", .noData: "No data", .refreshOnPhone: "Refresh school data on this iPhone first."
     ]
 
     private static let polish: [AppCopyKey: String] = [
@@ -90,10 +114,10 @@ private enum CopyBook {
         .noGrades: "Brak ocen", .firstSemester: "Pierwsze półrocze", .secondSemester: "Drugie półrocze", .average: "Średnia", .gradesCount: "ocen", .noWeight: "Bez wagi", .weight: "Waga", .finalGrade: "Ocena końcowa", .details: "Szczegóły",
         .noTimetable: "Brak planu lekcji", .selectDay: "Wybierz dzień", .lessonNumber: "Lekcja", .classroom: "Sala", .teacher: "Nauczyciel", .cancelled: "Odwołana", .substitution: "Zastępstwo",
         .noAttendance: "Brak wpisów frekwencji", .present: "Obecności", .absent: "Nieobecności", .recentRecords: "Ostatnie wpisy", .school: "Szkoła", .account: "Konto", .signOut: "Wyloguj się",
-        .settings: "Ustawienia", .appName: "Nazwa aplikacji", .language: "Język", .automaticSync: "Automatyczna synchronizacja", .automaticSyncDescription: "Odświeżaj dane szkolne automatycznie, gdy aplikacja jest otwarta.", .every45Minutes: "Co 45 minut", .save: "Zapisz", .reset: "Przywróć domyślną",
+        .settings: "Ustawienia", .appName: "Nazwa aplikacji", .language: "Język", .appearance: "Wygląd", .appearanceSystem: "Systemowy", .appearanceLight: "Jasny", .appearanceDark: "Ciemny", .automaticSync: "Automatyczna synchronizacja", .automaticSyncDescription: "Odświeżaj dane szkolne automatycznie, gdy aplikacja jest otwarta.", .every45Minutes: "Co 45 minut", .save: "Zapisz", .reset: "Przywróć domyślną",
         .inbox: "Odebrane", .sent: "Wysłane", .announcements: "Ogłoszenia", .notes: "Uwagi", .noMessages: "Brak wiadomości", .folderUnavailable: "Ta kategoria nie jest jeszcze udostępniana przez obecny adapter Librusa.", .due: "Termin", .addedBy: "Dodane przez",
         .noHomework: "Brak prac domowych", .all: "Wszystkie", .assessments: "Sprawdziany i prace klasowe", .noLongerRelevant: "To już nieaktualne", .remindMe: "Przypominaj mi", .note: "Notatka", .saveNote: "Zapisz notatkę", .saved: "Zapisano",
-        .lessonDetails: "Szczegóły lekcji", .gradeDetails: "Szczegóły oceny", .tutor: "Wychowawca", .teacherRole: "wychowawca", .appleWatch: "Apple Watch", .lessonAlerts: "Przypomnienia o końcu lekcji", .watchAlertDescription: "Powiadom Watch 5 minut przed końcem każdej lekcji, pokazując następną lekcję, salę i nauczyciela. Otwórz Librebus na Watch, aby zezwolić na powiadomienia.", .sendLatestToWatch: "Wyślij najnowsze dane na Watch", .watchDataDescription: "Najpierw odśwież dane szkolne na iPhonie. Watch otrzyma plan lekcji, ostatnie oceny i nadchodzące prace domowe — nie hasło.", .teacherNames: "Imiona nauczycieli są przekazywane, gdy przypomnienia są włączone. Wyłączenie zadziała po otrzymaniu zmiany przez Watch.", .connection: "Połączenie", .syncDescription: "Odświeża wszystkie dostępne dane szkolne.", .lastUpdated: "Ostatnia aktualizacja", .className: "Klasa", .noData: "Brak danych", .refreshOnPhone: "Najpierw odśwież dane szkolne na iPhonie."
+        .lessonDetails: "Szczegóły lekcji", .gradeDetails: "Szczegóły oceny", .tutor: "Wychowawca", .teacherRole: "wychowawca", .appleWatch: "Apple Watch", .lessonAlerts: "Przypomnienia o końcu lekcji", .watchAlertDescription: "Powiadom Watch 5 minut przed końcem każdej lekcji, pokazując następną lekcję, salę i nauczyciela. Otwórz Librebus na Watch, aby zezwolić na powiadomienia.", .sendLatestToWatch: "Wyślij najnowsze dane na Watch", .watchDataDescription: "Najpierw odśwież dane szkolne na iPhonie. Watch otrzyma plan lekcji, ostatnie oceny i nadchodzące prace domowe — nie hasło.", .teacherNames: "Imiona nauczycieli są przekazywane, gdy przypomnienia są włączone. Wyłączenie zadziała po otrzymaniu zmiany przez Watch.", .watchChecking: "Sprawdzanie Apple Watch…", .watchUnsupported: "Apple Watch nie jest obsługiwany na tym urządzeniu.", .watchUnavailable: "Połączenie z Watch jest niedostępne. Otwórz obie aplikacje i spróbuj ponownie.", .watchNotPaired: "Połącz Apple Watch z tym iPhonem.", .watchAppMissing: "Zainstaluj Librebus przez aplikację Watch na iPhonie.", .watchPrepareFailed: "Nie udało się przygotować danych dla Watch. Spróbuj zsynchronizować ponownie.", .watchQueued: "Najnowszy zestaw danych czeka na wysłanie do Apple Watch.", .watchQueueFailed: "Nie udało się wysłać danych do Watch. Otwórz obie aplikacje i spróbuj ponownie.", .connection: "Połączenie", .syncDescription: "Odświeża wszystkie dostępne dane szkolne.", .lastUpdated: "Ostatnia aktualizacja", .className: "Klasa", .noData: "Brak danych", .refreshOnPhone: "Najpierw odśwież dane szkolne na iPhonie."
     ]
 }
 
@@ -127,11 +151,17 @@ enum SchoolAppDate {
         return calendar.date(bySettingHour: hour, minute: minute, second: 0, of: day)
     }
 
-    static func formatted(_ date: Date) -> String {
+    static func formatted(_ date: Date, language: AppLanguage? = nil) -> String {
         let formatter = DateFormatter()
         formatter.calendar = calendar
-        formatter.locale = Locale.current
-        formatter.dateStyle = .medium
+        if let language {
+            formatter.locale = Locale(identifier: language == .polish ? "pl_PL" : "en_US")
+        } else {
+            formatter.locale = Locale.current
+        }
+        // Use a localized day-month-year template so dates read naturally in
+        // both languages instead of inheriting the simulator's ISO ordering.
+        formatter.setLocalizedDateFormatFromTemplate("d MMM yyyy")
         return formatter.string(from: date)
     }
 }

@@ -2,9 +2,33 @@
 import SwiftUI
 import WatchConnectivity
 
+enum WatchSyncStatus: Equatable {
+    case checking
+    case unsupported
+    case unavailable
+    case notPaired
+    case appMissing
+    case prepareFailed
+    case queued
+    case queueFailed
+
+    func text(using settings: AppSettings) -> String {
+        switch self {
+        case .checking: return settings.text(.watchChecking)
+        case .unsupported: return settings.text(.watchUnsupported)
+        case .unavailable: return settings.text(.watchUnavailable)
+        case .notPaired: return settings.text(.watchNotPaired)
+        case .appMissing: return settings.text(.watchAppMissing)
+        case .prepareFailed: return settings.text(.watchPrepareFailed)
+        case .queued: return settings.text(.watchQueued)
+        case .queueFailed: return settings.text(.watchQueueFailed)
+        }
+    }
+}
+
 @MainActor
 final class PhoneWatchSync: NSObject, ObservableObject, WCSessionDelegate {
-    @Published private(set) var status = "Checking Apple Watch…"
+    @Published private(set) var status: WatchSyncStatus = .checking
     @Published private(set) var lessonAlertsEnabled = UserDefaults.standard.bool(forKey: "watchLessonAlertsEnabled")
     private var schoolData = CachedSchoolData.empty
     private var signedIn = false
@@ -20,7 +44,7 @@ final class PhoneWatchSync: NSObject, ObservableObject, WCSessionDelegate {
         super.init()
         UserDefaults.standard.set(streamID, forKey: "watchSnapshotStream")
         guard WCSession.isSupported() else {
-            status = "Apple Watch is not supported on this device."
+            status = .unsupported
             return
         }
         let session = WCSession.default
@@ -48,7 +72,7 @@ final class PhoneWatchSync: NSObject, ObservableObject, WCSessionDelegate {
         } catch {
             // Never log the payload: it contains school data.
             latest = nil
-            status = "Could not prepare Watch data. Try syncing again."
+            status = .prepareFailed
         }
     }
 
@@ -63,21 +87,21 @@ final class PhoneWatchSync: NSObject, ObservableObject, WCSessionDelegate {
         guard WCSession.isSupported() else { return }
         let session = WCSession.default
         guard session.activationState == .activated else { return }
-        guard session.isPaired else { status = "Pair an Apple Watch with this iPhone."; return }
-        guard session.isWatchAppInstalled else { status = "Install Librebus using the iPhone’s Watch app."; return }
+        guard session.isPaired else { status = .notPaired; return }
+        guard session.isWatchAppInstalled else { status = .appMissing; return }
         guard let latest else { return }
         do {
             // Latest-state transport works while the counterpart is unreachable.
             try session.updateApplicationContext([WatchSnapshot.contextKey: latest])
-            status = "Latest snapshot queued for Apple Watch. Delivery is managed by watchOS."
+            status = .queued
         } catch {
-            status = "Watch sync could not be queued. Open both apps and try again."
+            status = .queueFailed
         }
     }
 
     nonisolated func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
         Task { @MainActor in
-            if error != nil { self.status = "Watch connection unavailable. Open both apps and try again." }
+            if error != nil { self.status = .unavailable }
             else { self.sendLatest() }
         }
     }
@@ -114,16 +138,24 @@ struct PhoneWatchStatusView: View {
             ))
             .accessibilityIdentifier("watchLessonAlertsToggle")
             Text(settings.text(.watchAlertDescription))
-                .font(.footnote).foregroundStyle(.secondary)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
             if sync.lessonAlertsEnabled {
                 Text(settings.text(.teacherNames))
-                    .font(.footnote).foregroundStyle(.secondary)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
-            Label(sync.status, systemImage: "applewatch")
+            Label(sync.status.text(using: settings), systemImage: "applewatch")
                 .font(.subheadline)
+                .lineLimit(2)
             Button(settings.text(.sendLatestToWatch)) { sync.sendLatest() }
+                .buttonStyle(.borderless)
             Text(settings.text(.watchDataDescription))
-                .font(.footnote).foregroundStyle(.secondary)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
         }
     }
 }

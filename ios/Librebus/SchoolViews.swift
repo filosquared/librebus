@@ -6,8 +6,7 @@ struct GradesView: View {
     @State private var semester: GradeSemester = .first
 
     var body: some View {
-        NavigationStack {
-            List {
+        List {
                 Section {
                     Picker(settings.text(.details), selection: $semester) {
                         ForEach(GradeSemester.allCases) { value in
@@ -40,9 +39,8 @@ struct GradesView: View {
                     }
                 }
             }
-            .schoolListStyle()
-            .navigationTitle(settings.text(.grades))
-        }
+        .schoolListStyle()
+        .navigationTitle(settings.text(.grades))
     }
 
     private var filteredGrades: [GradeRecord] {
@@ -161,8 +159,7 @@ struct ScheduleView: View {
     @State private var selectedDay = SchoolAppDate.dayKey(for: Date())
 
     var body: some View {
-        NavigationStack {
-            Group {
+        Group {
                 if let timetable = model.data.timetable, !timetable.days.isEmpty {
                     List {
                         Section {
@@ -195,8 +192,7 @@ struct ScheduleView: View {
                     EmptyState(title: settings.text(.noTimetable), message: settings.text(.refreshOnPhone), icon: "calendar.badge.clock")
                 }
             }
-            .navigationTitle(settings.text(.schedule))
-        }
+        .navigationTitle(settings.text(.schedule))
     }
 
     private var availableDays: [String] {
@@ -311,8 +307,7 @@ struct HomeworkView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            List {
+        List {
                 Section {
                     Picker(settings.text(.details), selection: $filter) {
                         ForEach(HomeworkFilter.allCases) { value in
@@ -332,9 +327,8 @@ struct HomeworkView: View {
                     }
                 }
             }
-            .schoolListStyle()
-            .navigationTitle(settings.text(.homework))
-        }
+        .schoolListStyle()
+        .navigationTitle(settings.text(.homework))
     }
 
     private var filteredHomeworks: [HomeworkRecord] {
@@ -410,8 +404,7 @@ struct AttendanceView: View {
     @EnvironmentObject private var settings: AppSettings
 
     var body: some View {
-        NavigationStack {
-            Group {
+        Group {
                 if model.data.attendances.isEmpty {
                     EmptyState(title: settings.text(.noAttendance), message: settings.text(.noData), icon: "checkmark.circle")
                 } else {
@@ -448,8 +441,7 @@ struct AttendanceView: View {
                     .schoolListStyle()
                 }
             }
-            .navigationTitle(settings.text(.attendance))
-        }
+        .navigationTitle(settings.text(.attendance))
     }
 }
 
@@ -473,8 +465,7 @@ struct MessagesView: View {
     @State private var folder: MessageFolder = .inbox
 
     var body: some View {
-        NavigationStack {
-            List {
+        List {
                 Section {
                     Picker(settings.text(.details), selection: $folder) {
                         ForEach(MessageFolder.allCases) { value in
@@ -508,13 +499,12 @@ struct MessagesView: View {
                     }
                 }
             }
-            .schoolListStyle()
-            .navigationTitle(settings.text(.messages))
-        }
+        .schoolListStyle()
+        .navigationTitle(settings.text(.messages))
     }
 
     private var folderMessages: [MessageSummary] {
-        model.data.messages.filter { $0.folder == folder }
+        model.data.messages.filter { $0.folder == folder && !$0.isLikelyHeaderRow }
     }
 
     private func folderTitle(_ folder: MessageFolder) -> String {
@@ -571,8 +561,7 @@ struct MoreView: View {
     @Binding var showSettings: Bool
 
     var body: some View {
-        NavigationStack {
-            List {
+        List {
                 if let profile = model.data.profile {
                     Section {
                         VStack(alignment: .leading, spacing: 4) {
@@ -611,7 +600,6 @@ struct MoreView: View {
                     }
                     .accessibilityLabel(settings.text(.settings))
                 }
-            }
         }
     }
 }
@@ -680,5 +668,15 @@ extension HomeworkRecord {
     var isAssessment: Bool {
         let searchable = "\(type) \(content)".folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
         return ["test", "sprawdz", "kartkow", "klasow", "projekt", "project", "egzamin", "exam"].contains { searchable.contains($0) }
+    }
+}
+
+extension MessageSummary {
+    // Some Librus HTML responses include the sortable table header as a row.
+    // Keep old caches from showing that header as if it were a real message.
+    var isLikelyHeaderRow: Bool {
+        let text = "\(sender) \(subject) \(date)"
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+        return text.contains("temat") || text.contains("subject") || text.contains("wyslano") || text.contains("sent")
     }
 }
