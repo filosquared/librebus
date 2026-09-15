@@ -126,6 +126,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.attributes = window.attributes.apply {
+            preferredRefreshRate = 120f
+        }
         setContent { LibrebusRoot(viewModel) }
     }
 }
@@ -283,8 +286,12 @@ private fun AuthenticatedApp(ui: SchoolUiState, viewModel: SchoolViewModel) {
                 AnimatedContent(
                     targetState = route,
                     transitionSpec = {
-                        (fadeIn(tween(240)) + slideInHorizontally(tween(240)) { it / 6 }) togetherWith
-                            (fadeOut(tween(180)) + slideOutHorizontally(tween(180)) { -it / 6 })
+                        if (initialState in mainRoutes && targetState in mainRoutes) {
+                            fadeIn(tween(100)) togetherWith fadeOut(tween(70))
+                        } else {
+                            (fadeIn(tween(240)) + slideInHorizontally(tween(240)) { it / 6 }) togetherWith
+                                (fadeOut(tween(180)) + slideOutHorizontally(tween(180)) { -it / 6 })
+                        }
                     },
                     label = "app-route",
                     contentKey = { it },
@@ -498,7 +505,7 @@ private fun GradesScreen(ui: SchoolUiState, viewModel: SchoolViewModel, open: (S
             item { Card(Modifier.fillMaxWidth()) { Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text(lang.text("Average", "Średnia"), color = MaterialTheme.colorScheme.onSurfaceVariant); Text(filtered.averageAcrossSubjects()?.let { "%.2f".format(it) } ?: "—", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold) }; Text("${filtered.size} ${lang.text("grades", "ocen")}", color = MaterialTheme.colorScheme.onSurfaceVariant) } } }
             if (filtered.isEmpty()) item { EmptyState(lang.text("No grades", "Brak ocen"), lang.text("No data for this semester.", "Brak danych dla tego półrocza."), Icons.Default.MenuBook) }
             ui.data.grades.filter { it.belongsTo(semester) }.groupBy { it.subject }.toSortedMap().forEach { (subject, grades) ->
-                item { Text("$subject  ·  ${grades.numericAverage()?.let { "%.2f".format(it) } ?: "—"}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp)) }
+                item { Text("$" + "subject  ·  ${grades.numericAverage()?.let { "%.2f".format(it) } ?: "—"}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp)) }
                 items(grades, key = { it.id }) { grade -> GradeRow(grade, lang) { open(grade.id) } }
             }
         }
@@ -833,10 +840,45 @@ private fun AttendanceScreen(ui: SchoolUiState, viewModel: SchoolViewModel) {
 @Composable
 private fun MoreScreen(ui: SchoolUiState, open: (Route) -> Unit) {
     val lang = ui.language
+    val luckyDate = LocalDate.now().format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault()))
     Column(Modifier.fillMaxSize()) {
         ScreenTopBar(lang.text("More", "Więcej"))
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item { StudentInfoCard(ui) }
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Star, null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(14.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                lang.text("Lucky number", "Szczęśliwy numerek"),
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                luckyDate,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Text(
+                            ui.data.luckyNumber?.toString() ?: "—",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(end = 24.dp)
+                        )
+                    }
+                }
+            }
             item { MoreRow(Icons.Default.Assignment, lang.text("Homework", "Prace domowe"), lang.text("Assignments and tests", "Zadania i sprawdziany")) { open(Route.HOMEWORK) } }
             item { MoreRow(Icons.Default.EventAvailable, lang.text("Attendance", "Frekwencja"), lang.text("Presence and absences", "Obecności i nieobecności")) { open(Route.ATTENDANCE) } }
             item { MoreRow(Icons.Default.Settings, lang.text("Settings", "Ustawienia"), lang.text("Language, appearance, and sync", "Język, wygląd i synchronizacja")) { open(Route.SETTINGS) } }

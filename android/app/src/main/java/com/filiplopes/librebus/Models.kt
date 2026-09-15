@@ -158,6 +158,7 @@ data class CachedSchoolData(
     val attendances: List<AttendanceRecord> = emptyList(),
     val homeworks: List<HomeworkRecord> = emptyList(),
     val messages: List<MessageSummary> = emptyList(),
+    val luckyNumber: Int? = null,
     val lastSync: String? = null,
     val timetableUpdatedAt: String? = null,
     val gradesUpdatedAt: String? = null,

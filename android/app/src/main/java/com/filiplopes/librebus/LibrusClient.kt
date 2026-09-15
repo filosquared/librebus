@@ -315,6 +315,14 @@ class LibrusClient {
         }.reversed()
     }
 
+    fun fetchLuckyNumber(): Int? {
+        val rawNumber = apiJson("LuckyNumbers")
+            .obj("LuckyNumber")
+            .string("LuckyNumber")
+            .trim()
+        return rawNumber.toIntOrNull()?.takeIf { it > 0 }
+    }
+
     fun fetchMessages(): List<MessageSummary> {
         val inboxHtml = portalHtml("/wiadomosci")
         val pages = linkedMapOf(MessageFolder.INBOX to inboxHtml)

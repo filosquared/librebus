@@ -131,6 +131,7 @@ class SchoolViewModel(application: Application) : AndroidViewModel(application) 
         load({ activeClient.fetchTimetable() }) { refreshed = refreshed.copy(timetable = it, timetableUpdatedAt = Instant.now().toString()) }
         load({ activeClient.fetchAttendances() }) { refreshed = refreshed.copy(attendances = it) }
         load({ activeClient.fetchHomeworks() }) { refreshed = refreshed.copy(homeworks = it, homeworksUpdatedAt = Instant.now().toString()) }
+        load({ activeClient.fetchLuckyNumber() }) { refreshed = refreshed.copy(luckyNumber = it) }
         load({ activeClient.fetchMessages() }) { refreshed = refreshed.copy(messages = it) }
         if (currentGeneration != generation) return
 
