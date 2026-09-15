@@ -412,7 +412,6 @@ private fun HomeScreen(ui: SchoolUiState, viewModel: SchoolViewModel, homework: 
             ui.availableUpdate?.let { release ->
                 item { UpdateCard(release, lang) { uriHandler.openUri(release.htmlUrl) } }
             }
-            item { TodayCard(ui, viewModel, openLesson) }
             item { Text(lang.text("Quick actions", "Szybkie akcje"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
