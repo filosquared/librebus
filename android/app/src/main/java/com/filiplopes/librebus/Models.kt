@@ -30,7 +30,21 @@ data class GradeRecord(
     val addedDate: String,
     val teacher: String
 ) {
-    val numericValue: Double? get() = value.replace(',', '.').toDoubleOrNull()
+    val numericValue: Double?
+        get() {
+            val normalized = value.trim().replace(',', '.').replace(Regex("\\s+"), "")
+            val grade = Regex("^([1-6])([+-])?$").matchEntire(normalized)
+            if (grade != null) {
+                val base = grade.groupValues[1].toDouble()
+                val adjustment = when (grade.groupValues[2]) {
+                    "+" -> 0.5
+                    "-" -> -0.5
+                    else -> 0.0
+                }
+                return (base + adjustment).coerceIn(1.0, 6.0)
+            }
+            return normalized.toDoubleOrNull()
+        }
     fun belongsTo(semesterFilter: GradeSemester): Boolean {
         if (semesterFilter == GradeSemester.ALL) return true
         val lower = semester.lowercase()
@@ -69,6 +83,12 @@ data class TimetableLesson(
 }
 
 enum class MessageFolder { INBOX, SENT, ANNOUNCEMENTS, NOTES }
+
+data class MessageRecipient(
+    val id: String,
+    val name: String,
+    val group: String
+)
 
 data class TimetableData(
     val nextWeek: Boolean = false,

@@ -316,9 +316,104 @@ class LibrusClient {
     }
 
     fun fetchMessages(): List<MessageSummary> {
-        val html = portalHtml("/wiadomosci")
+        val inboxHtml = portalHtml("/wiadomosci")
+        val pages = linkedMapOf(MessageFolder.INBOX to inboxHtml)
+        messageFolderLinks(Jsoup.parse(inboxHtml)).forEach { (folder, path) ->
+            if (folder == MessageFolder.INBOX) return@forEach
+            runCatching { portalHtml(path) }
+                .onSuccess { pages[folder] = it }
+                .onFailure { Log.w(LOG_TAG, "Could not load " + folder.name + " messages", it) }
+        }
+        val messages = pages.flatMap { (folder, page) -> parseMessagePage(page, folder) }
+            .distinctBy { it.folder to it.id }
+        val notes = pages[MessageFolder.NOTES]?.let(::parseBehaviourNotes) ?: fetchBehaviourNotes()
+        Log.d(LOG_TAG, "Messages pages parsed: pages=" + pages.size + ", messages=" + messages.size)
+        return messages + fetchAnnouncements() + notes
+    }
+
+    fun fetchMessageRecipients(): List<MessageRecipient> {
+        val composeHtml = portalHtml("/wiadomosci/2/5")
+        val csrfToken = Regex("""var\s+csrfTokenValue\s*=\s*\"([^\"]+)\"""")
+            .find(composeHtml)
+            ?.groupValues
+            ?.getOrNull(1)
+            .orEmpty()
+        if (csrfToken.isBlank()) {
+            throw LibrusClientError(LibrusErrorKind.MALFORMED_DATA, "Librus did not provide a message security token. Try again.")
+        }
+
+        val recipientTypes = listOf("wychowawca", "nauczyciel", "bibliotekarz", "sekretariat", "admin")
+        val recipients = recipientTypes.flatMap { type ->
+            val html = portalHtml(
+                "/getRecipients",
+                method = "POST",
+                body = formBody(
+                    mapOf(
+                        "typAdresata" to type,
+                        "poprzednia" to "5",
+                        "tabZaznaczonych" to "",
+                        "czyWirtualneKlasy" to "false",
+                        "idGrupy" to "0"
+                    )
+                ),
+                extraHeaders = mapOf(
+                    "X-Requested-With" to "XMLHttpRequest",
+                    "Referer" to "$portalBase/wiadomosci/2/5",
+                    "requestkey" to csrfToken
+                )
+            )
+            Jsoup.parse(html).select("tr").mapNotNull { row ->
+                val id = row.selectFirst("input[name='DoKogo[]']")?.attr("value")?.trim().orEmpty()
+                val name = row.selectFirst("label")?.text()?.trim().orEmpty()
+                if (id.isBlank() || name.isBlank()) null else MessageRecipient(id, name, recipientTypeLabel(type))
+            }
+        }
+        return recipients
+            .groupBy { it.name.replace(Regex("\\s+"), " ").trim().lowercase(Locale.ROOT) }
+            .values
+            .map { samePerson ->
+                val primary = samePerson.first()
+                val roles = samePerson.map { it.group }.distinct()
+                primary.copy(group = roles.joinToString(" / "))
+            }
+    }
+
+    fun sendMessage(recipientId: String, subject: String, content: String) {
+        if (recipientId.isBlank()) throw LibrusClientError(LibrusErrorKind.MALFORMED_DATA, "Choose a message recipient.")
+        if (subject.isBlank()) throw LibrusClientError(LibrusErrorKind.MALFORMED_DATA, "Enter a message subject.")
+        if (content.isBlank()) throw LibrusClientError(LibrusErrorKind.MALFORMED_DATA, "Enter a message body.")
+
+        val html = portalHtml(
+            "/wiadomosci/5",
+            method = "POST",
+            body = formBody(
+                mapOf(
+                    "DoKogo" to recipientId,
+                    "temat" to subject,
+                    "tresc" to content,
+                    "poprzednia" to "6",
+                    "wyslij" to "Wyślij"
+                )
+            )
+        )
+        val confirmation = Jsoup.parse(html).select(".green.container").text().trim()
+        if (!confirmation.contains("została wysłana", ignoreCase = true) && !confirmation.contains("zostala wyslana", ignoreCase = true)) {
+            throw LibrusClientError(LibrusErrorKind.UNEXPECTED_RESPONSE, "Librus did not confirm that the message was sent. Try again.")
+        }
+    }
+
+    private fun recipientTypeLabel(type: String): String = when (type) {
+        "wychowawca" -> "Wychowawca"
+        "nauczyciel" -> "Nauczyciel"
+        "bibliotekarz" -> "Bibliotekarz"
+        "sekretariat" -> "Sekretariat"
+        "admin" -> "Administracja"
+        else -> type
+    }
+
+    private fun parseMessagePage(html: String, folder: MessageFolder): List<MessageSummary> {
         val rows = Jsoup.parse(html).select("tr")
-        val messages = rows.mapNotNull { row ->
+        return rows.mapNotNull { row ->
             val columns = row.select("td")
             if (columns.size <= 1) return@mapNotNull null
             val linkColumn = columns.firstOrNull { column ->
@@ -334,11 +429,117 @@ class LibrusClient {
             if (subject.isEmpty() && date.isEmpty()) return@mapNotNull null
             val header = "$sender $subject $date".lowercase(Locale.getDefault())
             if (listOf("temat", "subject", "wyslano", "sent").any(header::contains)) return@mapNotNull null
-            MessageSummary(id, sender, subject, date)
+            MessageSummary(id, sender, subject, date, folder = folder)
         }
-        val candidateRows = rows.count { it.select("td").size > 1 }
-        Log.d(LOG_TAG, "Messages page parsed: rows=" + rows.size + ", candidateRows=" + candidateRows + ", messages=" + messages.size)
-        return messages + fetchAnnouncements()
+    }
+
+    private fun messageFolderLinks(document: org.jsoup.nodes.Document): Map<MessageFolder, String> {
+        return document.select("a[href], a[data-href]").mapNotNull { link ->
+            val label = link.text().trim().lowercase(Locale.getDefault())
+            val folder = when {
+                label.contains("wysł") || label.contains("wysl") || label.contains("sent") -> MessageFolder.SENT
+                label.contains("uwag") || label.contains("notes") -> MessageFolder.NOTES
+                label.contains("odebr") || label.contains("received") || label.contains("inbox") -> MessageFolder.INBOX
+                else -> null
+            }
+            val href = link.attr("href").ifBlank { link.attr("data-href") }
+            val path = portalPath(href)
+            if (folder == null || path == null) null else folder to path
+        }.toMap()
+    }
+
+    private fun portalPath(href: String): String? {
+        val trimmed = href.trim()
+        if (trimmed.isEmpty() || trimmed.startsWith("#") || trimmed.startsWith("javascript:", ignoreCase = true)) return null
+        val url = runCatching { URI(portalBase).resolve(trimmed) }.getOrNull() ?: return null
+        val portalHost = URI(portalBase).host
+        if (url.scheme != "https" || url.host != portalHost || url.userInfo != null || url.port !in listOf(-1, 443)) return null
+        return url.rawPath + (url.rawQuery?.let { "?" + it } ?: "")
+    }
+
+    private data class BehaviourNote(
+        val date: String = "",
+        val teacher: String = "",
+        val category: String = "",
+        val content: String = ""
+    )
+
+    private fun fetchBehaviourNotes(): List<MessageSummary> {
+        val html = runCatching { portalHtml("/uwagi") }
+            .getOrElse {
+                Log.w(LOG_TAG, "Could not load behaviour notes", it)
+                return emptyList()
+            }
+        return parseBehaviourNotes(html)
+    }
+
+    private fun parseBehaviourNotes(html: String): List<MessageSummary> {
+        val document = Jsoup.parse(html)
+        if (document.select("p.msgEmptyTable").any { it.text().contains("brak uwag", ignoreCase = true) }) {
+            return emptyList()
+        }
+
+        val notes = mutableListOf<BehaviourNote>()
+        document.select("table.decorated").forEach { table ->
+            val headerKeys = table.selectFirst("thead")
+                ?.select("th, td")
+                ?.map { noteFieldKey(it.text()) }
+                .orEmpty()
+
+            if (headerKeys.any { it != null }) {
+                val rows = table.select("tbody tr").ifEmpty { table.select("tr").drop(1) }
+                rows.forEach { row ->
+                    val cells = row.select("td, th").map { it.text().trim() }
+                    val fields = headerKeys.mapIndexedNotNull { index, key ->
+                        key?.let { field -> cells.getOrNull(index)?.let { field to it } }
+                    }.toMap()
+                    noteFromFields(fields)?.let(notes::add)
+                }
+            }
+
+            val pairFields = table.select("tr").mapNotNull { row ->
+                val cells = row.select("td, th")
+                if (cells.size != 2) return@mapNotNull null
+                val key = noteFieldKey(cells[0].text()) ?: return@mapNotNull null
+                key to cells[1].text().trim()
+            }.toMap()
+            noteFromFields(pairFields)?.let(notes::add)
+        }
+
+        return notes
+            .filter { it.content.isNotBlank() || it.category.isNotBlank() || it.teacher.isNotBlank() || it.date.isNotBlank() }
+            .distinct()
+            .mapIndexed { index, note ->
+                MessageSummary(
+                    id = "note-" + index,
+                    sender = note.teacher.ifBlank { "Librus" },
+                    subject = note.category.ifBlank { "Uwaga" },
+                    date = note.date,
+                    folder = MessageFolder.NOTES,
+                    content = note.content
+                )
+            }
+    }
+
+    private fun noteFieldKey(label: String): String? {
+        val normalized = label.trim().lowercase(Locale.getDefault())
+        return when {
+            normalized.startsWith("data") -> "date"
+            normalized.startsWith("nauczyciel") -> "teacher"
+            normalized.startsWith("rodzaj") -> "category"
+            normalized.startsWith("treść") || normalized.startsWith("tresc") || normalized.startsWith("uwaga") -> "content"
+            else -> null
+        }
+    }
+
+    private fun noteFromFields(fields: Map<String, String>): BehaviourNote? {
+        if (fields.isEmpty()) return null
+        return BehaviourNote(
+            date = fields["date"].orEmpty(),
+            teacher = fields["teacher"].orEmpty(),
+            category = fields["category"].orEmpty(),
+            content = fields["content"].orEmpty()
+        )
     }
 
     private fun fetchAnnouncements(): List<MessageSummary> {
@@ -452,12 +653,12 @@ class LibrusClient {
         return parseObject(response.bytes, path)
     }
 
-    private fun portalHtml(path: String, method: String = "GET", body: String? = null): String {
+    private fun portalHtml(path: String, method: String = "GET", body: String? = null, extraHeaders: Map<String, String> = emptyMap()): String {
         val response = request(
             portalBase + path,
             method = method,
             body = body,
-            headers = mapOf("Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+            headers = mapOf("Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8") + extraHeaders
         )
         if (isLoginRedirect(response)) throw LibrusClientError(LibrusErrorKind.SESSION_EXPIRED, "Your Librus session expired. Librebus will try to sign in again.")
         if (response.code != 200) throw responseError(response, "loading $path")

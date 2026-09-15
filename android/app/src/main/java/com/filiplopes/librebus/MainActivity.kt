@@ -65,6 +65,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -74,6 +75,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -128,7 +130,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Route { HOME, GRADES, SCHEDULE, MESSAGES, MORE, HOMEWORK, ATTENDANCE, SETTINGS, GRADE_DETAIL, LESSON_DETAIL, HOMEWORK_DETAIL, MESSAGE_DETAIL }
+private enum class Route { HOME, GRADES, SCHEDULE, MESSAGES, MORE, HOMEWORK, ATTENDANCE, SETTINGS, GRADE_DETAIL, LESSON_DETAIL, HOMEWORK_DETAIL, MESSAGE_DETAIL, NEW_MESSAGE }
 
 private fun AppLanguage.text(english: String, polish: String): String = if (this == AppLanguage.POLISH) polish else english
 
@@ -292,7 +294,12 @@ private fun AuthenticatedApp(ui: SchoolUiState, viewModel: SchoolViewModel) {
                         Route.HOME -> HomeScreen(ui, viewModel, { go(Route.HOMEWORK, "") }, { go(Route.ATTENDANCE, "") }, { route = Route.MESSAGES }, { go(Route.LESSON_DETAIL, it) })
                         Route.GRADES -> GradesScreen(ui, viewModel) { go(Route.GRADE_DETAIL, it) }
                         Route.SCHEDULE -> ScheduleScreen(ui, viewModel) { go(Route.LESSON_DETAIL, it) }
-                        Route.MESSAGES -> MessagesScreen(ui, viewModel) { go(Route.MESSAGE_DETAIL, it) }
+                        Route.MESSAGES -> MessagesScreen(ui, viewModel, { go(Route.MESSAGE_DETAIL, it) }) { route = Route.NEW_MESSAGE }
+                        Route.NEW_MESSAGE -> NewMessageScreen(ui, viewModel, { route = Route.MESSAGES }) {
+                            viewModel.clearMessageAction()
+                            route = Route.MESSAGES
+                            viewModel.sync()
+                        }
                         Route.MORE -> MoreScreen(ui) { route = it }
                         Route.HOMEWORK -> HomeworkScreen(ui, viewModel) { go(Route.HOMEWORK_DETAIL, it) }
                         Route.ATTENDANCE -> AttendanceScreen(ui, viewModel)
@@ -488,10 +495,10 @@ private fun GradesScreen(ui: SchoolUiState, viewModel: SchoolViewModel, open: (S
             }
         }
         LazyColumn(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            item { Card(Modifier.fillMaxWidth()) { Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text(lang.text("Average", "Średnia"), color = MaterialTheme.colorScheme.onSurfaceVariant); Text(filtered.mapNotNull { it.numericValue }.averageOrNull()?.let { "%.2f".format(it) } ?: "—", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold) }; Text("${filtered.size} ${lang.text("grades", "ocen")}", color = MaterialTheme.colorScheme.onSurfaceVariant) } } }
+            item { Card(Modifier.fillMaxWidth()) { Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text(lang.text("Average", "Średnia"), color = MaterialTheme.colorScheme.onSurfaceVariant); Text(filtered.averageAcrossSubjects()?.let { "%.2f".format(it) } ?: "—", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold) }; Text("${filtered.size} ${lang.text("grades", "ocen")}", color = MaterialTheme.colorScheme.onSurfaceVariant) } } }
             if (filtered.isEmpty()) item { EmptyState(lang.text("No grades", "Brak ocen"), lang.text("No data for this semester.", "Brak danych dla tego półrocza."), Icons.Default.MenuBook) }
             ui.data.grades.filter { it.belongsTo(semester) }.groupBy { it.subject }.toSortedMap().forEach { (subject, grades) ->
-                item { Text("$subject  ·  ${grades.mapNotNull { it.numericValue }.averageOrNull()?.let { "%.2f".format(it) } ?: "—"}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp)) }
+                item { Text("$subject  ·  ${grades.numericAverage()?.let { "%.2f".format(it) } ?: "—"}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp)) }
                 items(grades, key = { it.id }) { grade -> GradeRow(grade, lang) { open(grade.id) } }
             }
         }
@@ -637,17 +644,152 @@ private fun HomeworkDetail(homework: HomeworkRecord, ui: SchoolUiState, viewMode
 }
 
 @Composable
-private fun MessagesScreen(ui: SchoolUiState, viewModel: SchoolViewModel, open: (String) -> Unit) {
+private fun MessagesScreen(ui: SchoolUiState, viewModel: SchoolViewModel, open: (String) -> Unit, newMessage: () -> Unit) {
     var folder by rememberSaveable { mutableStateOf(MessageFolder.INBOX) }
     val lang = ui.language
     val labels = listOf(lang.text("Received", "Odebrane"), lang.text("Sent", "Wysłane"), lang.text("Announcements", "Ogłoszenia"), lang.text("Notes", "Uwagi"))
     val records = ui.data.messages.filter { it.folder == folder && !it.isLikelyHeaderRow }
+    Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize()) {
+            ScreenTopBar(lang.text("Messages", "Wiadomości"))
+            ScrollableTabRow(selectedTabIndex = folder.ordinal, edgePadding = 12.dp) { labels.forEachIndexed { index, label -> Tab(selected = folder.ordinal == index, onClick = { folder = MessageFolder.entries[index] }, text = { Text(label) }) } }
+            LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (records.isEmpty()) item { EmptyState(labels[folder.ordinal], lang.text("No messages in this folder.", "Brak wiadomości w tej kategorii."), Icons.Default.Email) }
+                items(records, key = { it.id }) { message -> Card(onClick = { open(message.id) }, modifier = Modifier.fillMaxWidth()) { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) { Row { Text(message.sender, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f)); Text(message.date, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }; Text(message.subject) } } }
+            }
+        }
+        if (folder == MessageFolder.SENT) {
+            FloatingActionButton(onClick = newMessage, modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)) {
+                Icon(Icons.Default.Add, contentDescription = lang.text("New message", "Nowa wiadomość"))
+            }
+        }
+    }
+}
+
+@Composable
+private fun NewMessageScreen(ui: SchoolUiState, viewModel: SchoolViewModel, onBack: () -> Unit, onSent: () -> Unit) {
+    val lang = ui.language
+    var recipientId by rememberSaveable { mutableStateOf("") }
+    var recipientQuery by rememberSaveable { mutableStateOf("") }
+    var subject by rememberSaveable { mutableStateOf("") }
+    var content by rememberSaveable { mutableStateOf("") }
+    var recipientMenuExpanded by remember { mutableStateOf(false) }
+    val matchingRecipients = ui.messageRecipients.filter {
+        (it.name + " " + it.group).contains(recipientQuery.trim(), ignoreCase = true)
+    }.take(8)
+    val canSend = recipientId.isNotBlank() && subject.isNotBlank() && content.isNotBlank() && !ui.sendingMessage
+
+    LaunchedEffect(Unit) {
+        viewModel.clearMessageAction()
+        viewModel.loadMessageRecipients()
+    }
+
     Column(Modifier.fillMaxSize()) {
-        ScreenTopBar(lang.text("Messages", "Wiadomości"))
-        ScrollableTabRow(selectedTabIndex = folder.ordinal, edgePadding = 12.dp) { labels.forEachIndexed { index, label -> Tab(selected = folder.ordinal == index, onClick = { folder = MessageFolder.entries[index] }, text = { Text(label) }) } }
-        LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (records.isEmpty()) item { EmptyState(labels[folder.ordinal], lang.text("No messages in this folder.", "Brak wiadomości w tej kategorii."), Icons.Default.Email) }
-            items(records, key = { it.id }) { message -> Card(onClick = { open(message.id) }, modifier = Modifier.fillMaxWidth()) { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) { Row { Text(message.sender, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f)); Text(message.date, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }; Text(message.subject) } } }
+        ScreenTopBar(lang.text("New message", "Nowa wiadomość"), back = true, onBack = onBack)
+        LazyColumn(
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
+                Text(lang.text("Recipient", "Odbiorca"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Box {
+                    OutlinedTextField(
+                        value = recipientQuery,
+                        onValueChange = {
+                            recipientQuery = it
+                            recipientId = ""
+                            recipientMenuExpanded = it.isNotBlank()
+                        },
+                        label = { Text(lang.text("Choose a recipient", "Wybierz odbiorcę")) },
+                        placeholder = { Text(lang.text("Type teacher's first name", "Wpisz imię nauczyciela")) },
+                        singleLine = true,
+                        enabled = !ui.loadingMessageRecipients && ui.messageRecipients.isNotEmpty(),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (recipientMenuExpanded && recipientQuery.isNotBlank()) {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 72.dp)
+                        ) {
+                            Column {
+                                if (matchingRecipients.isEmpty()) {
+                                    Text(
+                                        lang.text("No matching recipients.", "Brak pasujących odbiorców."),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(16.dp)
+                                    )
+                                } else {
+                                    matchingRecipients.forEach { recipient ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    recipientId = recipient.id
+                                                    recipientQuery = recipient.name + " · " + recipient.group
+                                                    recipientMenuExpanded = false
+                                                }
+                                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(Modifier.weight(1f)) {
+                                                Text(recipient.name, fontWeight = FontWeight.SemiBold)
+                                                Text(
+                                                    recipient.group,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if (ui.loadingMessageRecipients) {
+                    CircularProgressIndicator(Modifier.padding(top = 8.dp).size(20.dp), strokeWidth = 2.dp)
+                } else if (ui.messageRecipients.isEmpty()) {
+                    Text(lang.text("No recipients available.", "Brak dostępnych odbiorców."), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            item {
+                OutlinedTextField(
+                    value = subject,
+                    onValueChange = { subject = it },
+                    label = { Text(lang.text("Subject", "Temat")) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            item {
+                OutlinedTextField(
+                    value = content,
+                    onValueChange = { content = it },
+                    label = { Text(lang.text("Message", "Treść wiadomości")) },
+                    minLines = 7,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            if (ui.messageActionError != null) {
+                item {
+                    ErrorCard(
+                        ui.messageActionError,
+                        lang,
+                        onRetry = if (ui.messageRecipients.isEmpty()) viewModel::loadMessageRecipients else null
+                    )
+                }
+            }
+            item {
+                Button(
+                    onClick = { viewModel.sendMessage(recipientId, subject, content, onSent) },
+                    enabled = canSend,
+                    modifier = Modifier.fillMaxWidth().height(52.dp)
+                ) {
+                    if (ui.sendingMessage) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    else Text(lang.text("Send message", "Wyślij wiadomość"))
+                }
+            }
         }
     }
 }
@@ -655,7 +797,7 @@ private fun MessagesScreen(ui: SchoolUiState, viewModel: SchoolViewModel, open: 
 @Composable
 private fun MessageDetailScreen(summary: MessageSummary, ui: SchoolUiState, viewModel: SchoolViewModel, onBack: () -> Unit) {
     LaunchedEffect(summary.id) {
-        if (summary.folder != MessageFolder.ANNOUNCEMENTS) viewModel.loadMessage(summary.id)
+        if (summary.folder == MessageFolder.INBOX || summary.folder == MessageFolder.SENT) viewModel.loadMessage(summary.id)
     }
     val detail = viewModel.currentMessage.value
     Column(Modifier.fillMaxSize()) {
@@ -665,8 +807,8 @@ private fun MessageDetailScreen(summary: MessageSummary, ui: SchoolUiState, view
             item { Text("${summary.sender} · ${summary.date}", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             item { Divider(Modifier.padding(vertical = 4.dp)) }
             item {
-                if (summary.folder == MessageFolder.ANNOUNCEMENTS) {
-                    Text(summary.content.ifBlank { ui.language.text("No announcement content.", "Brak treści ogłoszenia.") })
+                if (summary.folder == MessageFolder.ANNOUNCEMENTS || summary.folder == MessageFolder.NOTES) {
+                    Text(summary.content.ifBlank { ui.language.text("No content.", "Brak treści.") })
                 } else if (detail == null) {
                     Text(ui.language.text("Loading message…", "Wczytywanie wiadomości…"), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
@@ -796,4 +938,7 @@ private fun EmptyState(title: String, message: String, icon: ImageVector) {
 }
 
 private fun findLesson(data: CachedSchoolData, id: String): TimetableLesson? = data.timetable?.days?.values?.flatten()?.firstOrNull { it.id == id }
+private fun List<GradeRecord>.numericAverage(): Double? = mapNotNull { it.numericValue }.averageOrNull()
+private fun List<GradeRecord>.averageAcrossSubjects(): Double? =
+    groupBy { it.subject }.values.mapNotNull { it.numericAverage() }.averageOrNull()
 private fun List<Double>.averageOrNull(): Double? = if (isEmpty()) null else average()

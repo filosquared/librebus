@@ -24,7 +24,12 @@ data class SchoolUiState(
     val error: String? = null,
     val language: AppLanguage = AppLanguage.ENGLISH,
     val appearance: AppAppearance = AppAppearance.SYSTEM,
-    val automaticSync: Boolean = true
+    val automaticSync: Boolean = true,
+    val messageRecipients: List<MessageRecipient> = emptyList(),
+    val loadingMessageRecipients: Boolean = false,
+    val sendingMessage: Boolean = false,
+    val messageActionError: String? = null,
+    val messageActionSuccess: Boolean = false
 )
 
 class SchoolViewModel(application: Application) : AndroidViewModel(application) {
@@ -192,7 +197,22 @@ class SchoolViewModel(application: Application) : AndroidViewModel(application) 
         syncJob?.cancel()
         credentials.clear()
         localStore.clear()
-        update { it.copy(ready = true, authenticated = false, syncing = false, username = "", data = CachedSchoolData(), notes = emptyList(), error = null) }
+        update {
+            it.copy(
+                ready = true,
+                authenticated = false,
+                syncing = false,
+                username = "",
+                data = CachedSchoolData(),
+                notes = emptyList(),
+                error = null,
+                messageRecipients = emptyList(),
+                loadingMessageRecipients = false,
+                sendingMessage = false,
+                messageActionError = null,
+                messageActionSuccess = false
+            )
+        }
     }
 
     fun saveNote(id: String, text: String, reminds: Boolean, noLongerRelevant: Boolean) {
@@ -209,6 +229,59 @@ class SchoolViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             currentMessage.value = runCatching { withContext(Dispatchers.IO) { activeClient.fetchMessage(id) } }.getOrNull()
         }
+    }
+    fun loadMessageRecipients() {
+        if (state.value.loadingMessageRecipients || state.value.messageRecipients.isNotEmpty()) return
+        val activeClient = client ?: return
+        val currentGeneration = generation
+        update { it.copy(loadingMessageRecipients = true, messageActionError = null) }
+        viewModelScope.launch {
+            try {
+                val recipients = withContext(Dispatchers.IO) { activeClient.fetchMessageRecipients() }
+                if (currentGeneration != generation) return@launch
+                update { it.copy(messageRecipients = recipients, loadingMessageRecipients = false) }
+            } catch (error: Exception) {
+                if (error is CancellationException) throw error
+                if (currentGeneration == generation) {
+                    update {
+                        it.copy(
+                            loadingMessageRecipients = false,
+                            messageActionError = friendlyError(error, "Could not load message recipients. Try again.")
+                        )
+                    }
+                }
+            }
+        }
+    }
+    fun sendMessage(recipientId: String, subject: String, content: String, onSent: () -> Unit) {
+        val activeClient = client
+        if (activeClient == null) {
+            update { it.copy(messageActionError = "Your Librus session is not ready. Try syncing and send again.") }
+            return
+        }
+        val currentGeneration = generation
+        update { it.copy(sendingMessage = true, messageActionError = null, messageActionSuccess = false) }
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { activeClient.sendMessage(recipientId, subject.trim(), content.trim()) }
+                if (currentGeneration != generation) return@launch
+                update { it.copy(sendingMessage = false, messageActionSuccess = true) }
+                onSent()
+            } catch (error: Exception) {
+                if (error is CancellationException) throw error
+                if (currentGeneration == generation) {
+                    update {
+                        it.copy(
+                            sendingMessage = false,
+                            messageActionError = friendlyError(error, "Message could not be sent. Try again.")
+                        )
+                    }
+                }
+            }
+        }
+    }
+    fun clearMessageAction() {
+        update { it.copy(messageActionError = null, messageActionSuccess = false) }
     }
     fun setLanguage(language: AppLanguage) { preferences.edit().putString("language", language.name).apply(); update { it.copy(language = language) } }
     fun setAppearance(appearance: AppAppearance) { preferences.edit().putString("appearance", appearance.name).apply(); update { it.copy(appearance = appearance) } }
