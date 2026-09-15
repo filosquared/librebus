@@ -389,7 +389,7 @@ private fun HomeScreen(ui: SchoolUiState, viewModel: SchoolViewModel, homework: 
                     Text(lang.text("Good to see you", "Dobrze Cię widzieć"), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelLarge)
                     Text(ui.data.profile?.firstName ?: "Librebus", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
                     ui.data.profile?.let { profile ->
-                        Text("${lang.text("Class", "Klasa")} ${profile.className}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("${lang.text("Class", "Klasa")} ${profile.className}", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
@@ -685,11 +685,50 @@ private fun MoreScreen(ui: SchoolUiState, open: (Route) -> Unit) {
     Column(Modifier.fillMaxSize()) {
         ScreenTopBar(lang.text("More", "Więcej"))
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            item { StudentInfoCard(ui) }
             item { MoreRow(Icons.Default.Assignment, lang.text("Homework", "Prace domowe"), lang.text("Assignments and tests", "Zadania i sprawdziany")) { open(Route.HOMEWORK) } }
             item { MoreRow(Icons.Default.EventAvailable, lang.text("Attendance", "Frekwencja"), lang.text("Presence and absences", "Obecności i nieobecności")) { open(Route.ATTENDANCE) } }
             item { MoreRow(Icons.Default.Settings, lang.text("Settings", "Ustawienia"), lang.text("Language, appearance, and sync", "Język, wygląd i synchronizacja")) { open(Route.SETTINGS) } }
             item { MoreRow(Icons.Default.Info, lang.text("About Librebus", "O Librebus"), "Librebus 1.0") {} }
         }
+    }
+}
+
+@Composable
+private fun StudentInfoCard(ui: SchoolUiState) {
+    val profile = ui.data.profile ?: return
+    val lang = ui.language
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(
+            Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                lang.text("Student information", "Informacje o uczniu"),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(profile.fullName, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                ProfileField(lang.text("Class", "Klasa"), profile.className, Modifier.weight(1f), lang)
+                ProfileField(lang.text("Tutor", "Wychowawca"), profile.tutorName, Modifier.weight(1f), lang)
+            }
+            ProfileField(lang.text("Account type", "Typ konta"), profile.type, Modifier.fillMaxWidth(), lang)
+        }
+    }
+}
+
+@Composable
+private fun ProfileField(label: String, value: String, modifier: Modifier, language: AppLanguage) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value.ifBlank { language.text("Not available", "Brak danych") }, fontWeight = FontWeight.SemiBold)
     }
 }
 
