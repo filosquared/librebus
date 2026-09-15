@@ -1,10 +1,12 @@
 package com.filiplopes.librecap
 
+import android.app.Activity
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.runtime.SideEffect
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
@@ -63,14 +65,17 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -102,11 +107,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.toArgb
+import androidx.core.view.WindowCompat
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -118,11 +127,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.attributes = window.attributes.apply {
+            preferredRefreshRate = 120f
+        }
         setContent { LibreCapRoot(viewModel) }
     }
 }
 
-private enum class Route { HOME, GRADES, SCHEDULE, MESSAGES, MORE, HOMEWORK, ATTENDANCE, SETTINGS, GRADE_DETAIL, LESSON_DETAIL, HOMEWORK_DETAIL, MESSAGE_DETAIL }
+private enum class Route { HOME, GRADES, SCHEDULE, MESSAGES, MORE, HOMEWORK, ATTENDANCE, SETTINGS, GRADE_DETAIL, LESSON_DETAIL, HOMEWORK_DETAIL, MESSAGE_DETAIL, NEW_MESSAGE }
 
 private fun AppLanguage.text(english: String, polish: String): String = if (this == AppLanguage.POLISH) polish else english
 
@@ -135,7 +147,24 @@ private fun LibreCapTheme(appearance: AppAppearance, content: @Composable () -> 
     }
     MaterialTheme(
         colorScheme = if (dark) darkColorScheme(primary = Color(0xFFB9C2FF), secondary = Color(0xFFB9DAD6)) else lightColorScheme(primary = Color(0xFF4657D6), secondary = Color(0xFF416A67)),
-        content = content
+        content = {
+            val view = LocalView.current
+            val window = (view.context as? Activity)?.window
+            val systemBarColor = MaterialTheme.colorScheme.surface
+
+            SideEffect {
+                window?.let {
+                    it.statusBarColor = systemBarColor.toArgb()
+                    it.navigationBarColor = systemBarColor.toArgb()
+                    WindowCompat.getInsetsController(it, view).apply {
+                        isAppearanceLightStatusBars = !dark
+                        isAppearanceLightNavigationBars = !dark
+                    }
+                }
+            }
+
+            content()
+        }
     )
 }
 
@@ -221,7 +250,13 @@ private fun LoginScreen(ui: SchoolUiState, viewModel: SchoolViewModel) {
             )
         }
         if (ui.error != null) {
-            item { ErrorCard(ui.error, lang) }
+            item {
+                ErrorCard(
+                    message = ui.error,
+                    language = lang,
+                    onRetry = { if (password.isNotEmpty()) viewModel.login(username, password) else viewModel.retry() }
+                )
+            }
         }
         item {
             Button(
@@ -247,29 +282,55 @@ private fun AuthenticatedApp(ui: SchoolUiState, viewModel: SchoolViewModel) {
             if (route in mainRoutes) BottomBar(route, ui.language) { route = it }
         }
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
-            AnimatedContent(
-                targetState = route,
-                transitionSpec = {
-                    (fadeIn(tween(240)) + slideInHorizontally(tween(240)) { it / 6 }) togetherWith
-                        (fadeOut(tween(180)) + slideOutHorizontally(tween(180)) { -it / 6 })
-                },
-                label = "app-route",
-                contentKey = { it }
-            ) { screen ->
-                when (screen) {
-                    Route.HOME -> HomeScreen(ui, viewModel, { route = Route.SETTINGS }, { go(Route.HOMEWORK, "") }, { go(Route.ATTENDANCE, "") }, { route = Route.MESSAGES }, { go(Route.LESSON_DETAIL, it) })
-                    Route.GRADES -> GradesScreen(ui, viewModel) { go(Route.GRADE_DETAIL, it) }
-                    Route.SCHEDULE -> ScheduleScreen(ui, viewModel) { go(Route.LESSON_DETAIL, it) }
-                    Route.MESSAGES -> MessagesScreen(ui, viewModel) { go(Route.MESSAGE_DETAIL, it) }
-                    Route.MORE -> MoreScreen(ui) { route = it }
-                    Route.HOMEWORK -> HomeworkScreen(ui, viewModel) { go(Route.HOMEWORK_DETAIL, it) }
-                    Route.ATTENDANCE -> AttendanceScreen(ui, viewModel)
-                    Route.SETTINGS -> SettingsScreen(ui, viewModel) { route = Route.HOME }
-                    Route.GRADE_DETAIL -> ui.data.grades.firstOrNull { it.id == selectedId }?.let { DetailScaffold(ui.language.text("Grade details", "Szczegóły oceny"), { route = Route.GRADES }) { GradeDetail(it, ui.language) } }
-                    Route.LESSON_DETAIL -> findLesson(ui.data, selectedId)?.let { lesson -> DetailScaffold(ui.language.text("Lesson details", "Szczegóły lekcji"), { route = Route.SCHEDULE }) { LessonDetail(lesson, ui, viewModel) } }
-                    Route.HOMEWORK_DETAIL -> ui.data.homeworks.firstOrNull { it.id == selectedId }?.let { DetailScaffold(ui.language.text("Homework details", "Szczegóły pracy domowej"), { route = Route.HOMEWORK }) { HomeworkDetail(it, ui, viewModel) } }
-                    Route.MESSAGE_DETAIL -> ui.data.messages.firstOrNull { it.id == selectedId }?.let { MessageDetailScreen(it, ui, viewModel) { route = Route.MESSAGES } }
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                AnimatedContent(
+                    targetState = route,
+                    transitionSpec = {
+                        if (initialState in mainRoutes && targetState in mainRoutes) {
+                            fadeIn(tween(100)) togetherWith fadeOut(tween(70))
+                        } else {
+                            (fadeIn(tween(240)) + slideInHorizontally(tween(240)) { it / 6 }) togetherWith
+                                (fadeOut(tween(180)) + slideOutHorizontally(tween(180)) { -it / 6 })
+                        }
+                    },
+                    label = "app-route",
+                    contentKey = { it },
+                    modifier = Modifier.fillMaxSize()
+                ) { screen ->
+                    when (screen) {
+                        Route.HOME -> HomeScreen(ui, viewModel, { go(Route.HOMEWORK, "") }, { go(Route.ATTENDANCE, "") }, { route = Route.MESSAGES }, { go(Route.LESSON_DETAIL, it) })
+                        Route.GRADES -> GradesScreen(ui, viewModel) { go(Route.GRADE_DETAIL, it) }
+                        Route.SCHEDULE -> ScheduleScreen(ui, viewModel) { go(Route.LESSON_DETAIL, it) }
+                        Route.MESSAGES -> MessagesScreen(ui, viewModel, { go(Route.MESSAGE_DETAIL, it) }) { route = Route.NEW_MESSAGE }
+                        Route.NEW_MESSAGE -> NewMessageScreen(ui, viewModel, { route = Route.MESSAGES }) {
+                            viewModel.clearMessageAction()
+                            route = Route.MESSAGES
+                            viewModel.sync()
+                        }
+                        Route.MORE -> MoreScreen(ui) { route = it }
+                        Route.HOMEWORK -> HomeworkScreen(ui, viewModel) { go(Route.HOMEWORK_DETAIL, it) }
+                        Route.ATTENDANCE -> AttendanceScreen(ui, viewModel)
+                        Route.SETTINGS -> SettingsScreen(ui, viewModel) { route = Route.HOME }
+                        Route.GRADE_DETAIL -> ui.data.grades.firstOrNull { it.id == selectedId }?.let { DetailScaffold(ui.language.text("Grade details", "Szczegóły oceny"), { route = Route.GRADES }) { GradeDetail(it, ui.language) } }
+                        Route.LESSON_DETAIL -> findLesson(ui.data, selectedId)?.let { lesson -> DetailScaffold(ui.language.text("Lesson details", "Szczegóły lekcji"), { route = Route.SCHEDULE }) { LessonDetail(lesson, ui, viewModel) } }
+                        Route.HOMEWORK_DETAIL -> ui.data.homeworks.firstOrNull { it.id == selectedId }?.let { DetailScaffold(ui.language.text("Homework details", "Szczegóły pracy domowej"), { route = Route.HOMEWORK }) { HomeworkDetail(it, ui, viewModel) } }
+                        Route.MESSAGE_DETAIL -> ui.data.messages.firstOrNull { it.id == selectedId }?.let { MessageDetailScreen(it, ui, viewModel) { route = Route.MESSAGES } }
+                    }
+                }
+            }
+            AnimatedVisibility(
+                visible = ui.error != null,
+                enter = fadeIn(tween(220)) + expandVertically(tween(220)),
+                exit = fadeOut(tween(160)) + shrinkVertically(tween(160))
+            ) {
+                ui.error?.let {
+                    ErrorCard(
+                        message = it,
+                        language = ui.language,
+                        onRetry = viewModel::retry,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
                 }
             }
         }
@@ -287,7 +348,20 @@ private fun BottomBar(route: Route, language: AppLanguage, select: (Route) -> Un
     )
     NavigationBar {
         items.forEach { (itemRoute, label, icon) ->
-            NavigationBarItem(selected = route == itemRoute, onClick = { select(itemRoute) }, icon = { Icon(icon, label) }, label = { Text(label) })
+            NavigationBarItem(
+                selected = route == itemRoute,
+                onClick = { select(itemRoute) },
+                icon = { Icon(icon, label) },
+                label = {
+                    Text(
+                        label,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
+            )
         }
     }
 }
@@ -312,13 +386,18 @@ private fun DetailScaffold(title: String, onBack: () -> Unit, content: @Composab
 }
 
 @Composable
-private fun HomeScreen(ui: SchoolUiState, viewModel: SchoolViewModel, settings: () -> Unit, homework: () -> Unit, attendance: () -> Unit, messages: () -> Unit, openLesson: (String) -> Unit) {
+private fun HomeScreen(ui: SchoolUiState, viewModel: SchoolViewModel, homework: () -> Unit, attendance: () -> Unit, messages: () -> Unit, openLesson: (String) -> Unit) {
     val lang = ui.language
     val uriHandler = LocalUriHandler.current
     Column(Modifier.fillMaxSize()) {
         ScreenTopBar(ui.data.profile?.fullName ?: "LibreCap", actions = {
-            IconButton(onClick = viewModel::sync) { Icon(Icons.Default.Refresh, lang.text("Sync now", "Synchronizuj")) }
-            IconButton(onClick = settings) { Icon(Icons.Default.Settings, lang.text("Settings", "Ustawienia")) }
+            IconButton(onClick = viewModel::sync, enabled = !ui.syncing) {
+                if (ui.syncing) {
+                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(Icons.Default.Refresh, lang.text("Sync now", "Synchronizuj"))
+                }
+            }
         })
         LazyColumn(contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             item {
@@ -326,18 +405,8 @@ private fun HomeScreen(ui: SchoolUiState, viewModel: SchoolViewModel, settings: 
                     Text(lang.text("Good to see you", "Dobrze Cię widzieć"), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelLarge)
                     Text(ui.data.profile?.firstName ?: "LibreCap", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
                     ui.data.profile?.let { profile ->
-                        Text("${lang.text("Class", "Klasa")} ${profile.className}", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        if (profile.tutorName.isNotBlank()) Text("${profile.tutorName} (${lang.text("tutor", "wychowawca")})", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                        Text("${lang.text("Class", "Klasa")} ${profile.className}", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                     }
-                }
-            }
-            item {
-                AnimatedVisibility(
-                    visible = ui.error != null,
-                    enter = fadeIn(tween(220)) + expandVertically(tween(220)),
-                    exit = fadeOut(tween(160)) + shrinkVertically(tween(160))
-                ) {
-                    ui.error?.let { ErrorCard(it, lang) }
                 }
             }
             ui.availableUpdate?.let { release ->
@@ -357,16 +426,32 @@ private fun HomeScreen(ui: SchoolUiState, viewModel: SchoolViewModel, settings: 
                     SummaryCard(lang.text("Attendance", "Frekwencja"), ui.data.attendances.count { !it.isPresence }.toString(), Icons.Default.EventAvailable, Color(0xFFD45151), attendance, Modifier.weight(1f))
                 }
             }
+            item { TodayCard(ui, viewModel, openLesson) }
         }
     }
 }
 
 @Composable
-private fun ErrorCard(message: String, language: AppLanguage) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer), modifier = Modifier.fillMaxWidth().animateContentSize(tween(220))) {
-        Row(Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
-            Icon(Icons.Default.ErrorOutline, null, tint = MaterialTheme.colorScheme.onErrorContainer)
-            Text(message, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodyMedium)
+private fun ErrorCard(message: String, language: AppLanguage, onRetry: (() -> Unit)? = null, modifier: Modifier = Modifier) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+        modifier = modifier.fillMaxWidth().animateContentSize(tween(220))
+    ) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
+                Icon(Icons.Default.ErrorOutline, null, tint = MaterialTheme.colorScheme.onErrorContainer)
+                Text(
+                    message,
+                    Modifier.weight(1f),
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+            onRetry?.let {
+                TextButton(onClick = it, modifier = Modifier.align(Alignment.End)) {
+                    Text(language.text("Try again", "Spróbuj ponownie"))
+                }
+            }
         }
     }
 }
@@ -452,10 +537,10 @@ private fun GradesScreen(ui: SchoolUiState, viewModel: SchoolViewModel, open: (S
             }
         }
         LazyColumn(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            item { Card(Modifier.fillMaxWidth()) { Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text(lang.text("Average", "Średnia"), color = MaterialTheme.colorScheme.onSurfaceVariant); Text(filtered.mapNotNull { it.numericValue }.averageOrNull()?.let { "%.2f".format(it) } ?: "—", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold) }; Text("${filtered.size} ${lang.text("grades", "ocen")}", color = MaterialTheme.colorScheme.onSurfaceVariant) } } }
+            item { Card(Modifier.fillMaxWidth()) { Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text(lang.text("Average", "Średnia"), color = MaterialTheme.colorScheme.onSurfaceVariant); Text(filtered.averageAcrossSubjects()?.let { "%.2f".format(it) } ?: "—", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold) }; Text("${filtered.size} ${lang.text("grades", "ocen")}", color = MaterialTheme.colorScheme.onSurfaceVariant) } } }
             if (filtered.isEmpty()) item { EmptyState(lang.text("No grades", "Brak ocen"), lang.text("No data for this semester.", "Brak danych dla tego półrocza."), Icons.Default.MenuBook) }
             ui.data.grades.filter { it.belongsTo(semester) }.groupBy { it.subject }.toSortedMap().forEach { (subject, grades) ->
-                item { Text("$subject  ·  ${grades.mapNotNull { it.numericValue }.averageOrNull()?.let { "%.2f".format(it) } ?: "—"}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp)) }
+                item { Text("$" + "subject  ·  ${grades.numericAverage()?.let { "%.2f".format(it) } ?: "—"}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp)) }
                 items(grades, key = { it.id }) { grade -> GradeRow(grade, lang) { open(grade.id) } }
             }
         }
@@ -524,8 +609,15 @@ private fun LessonRow(lesson: TimetableLesson, ui: SchoolUiState, viewModel: Sch
             Column(Modifier.width(50.dp)) { Text(lesson.hourFrom, fontWeight = FontWeight.SemiBold); Text(lesson.hourTo, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             Divider(Modifier.height(42.dp).width(1.dp).padding(horizontal = 4.dp))
             Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                Text(lesson.subject, fontWeight = FontWeight.Medium)
-                Text(listOf(lesson.teacher, lesson.classroom.takeIf { it != "—" }.orEmpty()).filter(String::isNotBlank).joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(lesson.displaySubject, fontWeight = FontWeight.Medium)
+                val teacherText = when {
+                    lesson.teacher.isNotBlank() && lesson.hasOriginalTeacher ->
+                        "${lesson.teacher} > ${lesson.originalTeacher}"
+                    lesson.teacher.isNotBlank() -> lesson.teacher
+                    lesson.hasOriginalTeacher -> lesson.originalTeacher.orEmpty()
+                    else -> ""
+                }
+                Text(listOf(teacherText, lesson.classroom.takeIf { it != "—" }.orEmpty()).filter(String::isNotBlank).joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (lesson.isCancelled || lesson.isSubstitution) Text(if (lesson.isCancelled) ui.language.text("Cancelled", "Odwołana") else ui.language.text("Substitution", "Zastępstwo"), color = if (lesson.isCancelled) MaterialTheme.colorScheme.error else Color(0xFFE78225), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
             }
             if (viewModel.note(lesson.id) != null) Icon(Icons.Default.NoteAlt, ui.language.text("Note", "Notatka"), tint = MaterialTheme.colorScheme.primary)
@@ -537,9 +629,11 @@ private fun LessonRow(lesson: TimetableLesson, ui: SchoolUiState, viewModel: Sch
 private fun LessonDetail(lesson: TimetableLesson, ui: SchoolUiState, viewModel: SchoolViewModel) {
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         item { DetailRow(ui.language.text("Lesson", "Lekcja"), lesson.lessonNumber) }
+        item { DetailRow(ui.language.text("Subject", "Przedmiot"), lesson.displaySubject) }
         item { DetailRow(ui.language.text("Time", "Godzina"), "${lesson.hourFrom} – ${lesson.hourTo}") }
         item { DetailRow(ui.language.text("Classroom", "Sala"), lesson.classroom) }
         item { DetailRow(ui.language.text("Teacher", "Nauczyciel"), lesson.teacher) }
+        if (lesson.hasOriginalTeacher) item { DetailRow(ui.language.text("Replaced teacher", "Zastąpiony nauczyciel"), lesson.originalTeacher.orEmpty()) }
         if (lesson.isCancelled || lesson.isSubstitution) item { Text(if (lesson.isCancelled) ui.language.text("Cancelled", "Odwołana") else ui.language.text("Substitution", "Zastępstwo"), color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 16.dp)) }
         item { Text(ui.language.text("Note", "Notatka"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 20.dp)) }
         item { NoteEditor(lesson.id, ui, viewModel) }
@@ -592,24 +686,161 @@ private fun HomeworkDetail(homework: HomeworkRecord, ui: SchoolUiState, viewMode
 }
 
 @Composable
-private fun MessagesScreen(ui: SchoolUiState, viewModel: SchoolViewModel, open: (String) -> Unit) {
+private fun MessagesScreen(ui: SchoolUiState, viewModel: SchoolViewModel, open: (String) -> Unit, newMessage: () -> Unit) {
     var folder by rememberSaveable { mutableStateOf(MessageFolder.INBOX) }
     val lang = ui.language
     val labels = listOf(lang.text("Received", "Odebrane"), lang.text("Sent", "Wysłane"), lang.text("Announcements", "Ogłoszenia"), lang.text("Notes", "Uwagi"))
     val records = ui.data.messages.filter { it.folder == folder && !it.isLikelyHeaderRow }
+    Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize()) {
+            ScreenTopBar(lang.text("Messages", "Wiadomości"))
+            ScrollableTabRow(selectedTabIndex = folder.ordinal, edgePadding = 12.dp) { labels.forEachIndexed { index, label -> Tab(selected = folder.ordinal == index, onClick = { folder = MessageFolder.entries[index] }, text = { Text(label) }) } }
+            LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (records.isEmpty()) item { EmptyState(labels[folder.ordinal], lang.text("No messages in this folder.", "Brak wiadomości w tej kategorii."), Icons.Default.Email) }
+                items(records, key = { it.id }) { message -> Card(onClick = { open(message.id) }, modifier = Modifier.fillMaxWidth()) { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) { Row { Text(message.sender, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f)); Text(message.date, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }; Text(message.subject) } } }
+            }
+        }
+        if (folder == MessageFolder.SENT) {
+            FloatingActionButton(onClick = newMessage, modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)) {
+                Icon(Icons.Default.Add, contentDescription = lang.text("New message", "Nowa wiadomość"))
+            }
+        }
+    }
+}
+
+@Composable
+private fun NewMessageScreen(ui: SchoolUiState, viewModel: SchoolViewModel, onBack: () -> Unit, onSent: () -> Unit) {
+    val lang = ui.language
+    var recipientId by rememberSaveable { mutableStateOf("") }
+    var recipientQuery by rememberSaveable { mutableStateOf("") }
+    var subject by rememberSaveable { mutableStateOf("") }
+    var content by rememberSaveable { mutableStateOf("") }
+    var recipientMenuExpanded by remember { mutableStateOf(false) }
+    val matchingRecipients = ui.messageRecipients.filter {
+        (it.name + " " + it.group).contains(recipientQuery.trim(), ignoreCase = true)
+    }.take(8)
+    val canSend = recipientId.isNotBlank() && subject.isNotBlank() && content.isNotBlank() && !ui.sendingMessage
+
+    LaunchedEffect(Unit) {
+        viewModel.clearMessageAction()
+        viewModel.loadMessageRecipients()
+    }
+
     Column(Modifier.fillMaxSize()) {
-        ScreenTopBar(lang.text("Messages", "Wiadomości"))
-        ScrollableTabRow(selectedTabIndex = folder.ordinal, edgePadding = 12.dp) { labels.forEachIndexed { index, label -> Tab(selected = folder.ordinal == index, onClick = { folder = MessageFolder.entries[index] }, text = { Text(label) }) } }
-        LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (records.isEmpty()) item { EmptyState(labels[folder.ordinal], lang.text("No messages in this folder.", "Brak wiadomości w tej kategorii."), Icons.Default.Email) }
-            items(records, key = { it.id }) { message -> Card(onClick = { open(message.id) }, modifier = Modifier.fillMaxWidth()) { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) { Row { Text(message.sender, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f)); Text(message.date, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }; Text(message.subject) } } }
+        ScreenTopBar(lang.text("New message", "Nowa wiadomość"), back = true, onBack = onBack)
+        LazyColumn(
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
+                Text(lang.text("Recipient", "Odbiorca"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Box {
+                    OutlinedTextField(
+                        value = recipientQuery,
+                        onValueChange = {
+                            recipientQuery = it
+                            recipientId = ""
+                            recipientMenuExpanded = it.isNotBlank()
+                        },
+                        label = { Text(lang.text("Choose a recipient", "Wybierz odbiorcę")) },
+                        placeholder = { Text(lang.text("Type teacher's first name", "Wpisz imię nauczyciela")) },
+                        singleLine = true,
+                        enabled = !ui.loadingMessageRecipients && ui.messageRecipients.isNotEmpty(),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (recipientMenuExpanded && recipientQuery.isNotBlank()) {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 72.dp)
+                        ) {
+                            Column {
+                                if (matchingRecipients.isEmpty()) {
+                                    Text(
+                                        lang.text("No matching recipients.", "Brak pasujących odbiorców."),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(16.dp)
+                                    )
+                                } else {
+                                    matchingRecipients.forEach { recipient ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    recipientId = recipient.id
+                                                    recipientQuery = recipient.name + " · " + recipient.group
+                                                    recipientMenuExpanded = false
+                                                }
+                                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(Modifier.weight(1f)) {
+                                                Text(recipient.name, fontWeight = FontWeight.SemiBold)
+                                                Text(
+                                                    recipient.group,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if (ui.loadingMessageRecipients) {
+                    CircularProgressIndicator(Modifier.padding(top = 8.dp).size(20.dp), strokeWidth = 2.dp)
+                } else if (ui.messageRecipients.isEmpty()) {
+                    Text(lang.text("No recipients available.", "Brak dostępnych odbiorców."), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            item {
+                OutlinedTextField(
+                    value = subject,
+                    onValueChange = { subject = it },
+                    label = { Text(lang.text("Subject", "Temat")) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            item {
+                OutlinedTextField(
+                    value = content,
+                    onValueChange = { content = it },
+                    label = { Text(lang.text("Message", "Treść wiadomości")) },
+                    minLines = 7,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            if (ui.messageActionError != null) {
+                item {
+                    ErrorCard(
+                        ui.messageActionError,
+                        lang,
+                        onRetry = if (ui.messageRecipients.isEmpty()) viewModel::loadMessageRecipients else null
+                    )
+                }
+            }
+            item {
+                Button(
+                    onClick = { viewModel.sendMessage(recipientId, subject, content, onSent) },
+                    enabled = canSend,
+                    modifier = Modifier.fillMaxWidth().height(52.dp)
+                ) {
+                    if (ui.sendingMessage) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    else Text(lang.text("Send message", "Wyślij wiadomość"))
+                }
+            }
         }
     }
 }
 
 @Composable
 private fun MessageDetailScreen(summary: MessageSummary, ui: SchoolUiState, viewModel: SchoolViewModel, onBack: () -> Unit) {
-    LaunchedEffect(summary.id) { viewModel.loadMessage(summary.id) }
+    LaunchedEffect(summary.id) {
+        if (summary.folder == MessageFolder.INBOX || summary.folder == MessageFolder.SENT) viewModel.loadMessage(summary.id)
+    }
     val detail = viewModel.currentMessage.value
     Column(Modifier.fillMaxSize()) {
         ScreenTopBar(ui.language.text("Message", "Wiadomość"), back = true, onBack = onBack)
@@ -617,7 +848,15 @@ private fun MessageDetailScreen(summary: MessageSummary, ui: SchoolUiState, view
             item { Text(summary.subject, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
             item { Text("${summary.sender} · ${summary.date}", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             item { Divider(Modifier.padding(vertical = 4.dp)) }
-            item { if (detail == null) Text(ui.language.text("Loading message…", "Wczytywanie wiadomości…"), color = MaterialTheme.colorScheme.onSurfaceVariant) else Text(detail.content.ifBlank { ui.language.text("No message content.", "Brak treści wiadomości.") }) }
+            item {
+                if (summary.folder == MessageFolder.ANNOUNCEMENTS || summary.folder == MessageFolder.NOTES) {
+                    Text(summary.content.ifBlank { ui.language.text("No content.", "Brak treści.") })
+                } else if (detail == null) {
+                    Text(ui.language.text("Loading message…", "Wczytywanie wiadomości…"), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    Text(detail.content.ifBlank { ui.language.text("No message content.", "Brak treści wiadomości.") })
+                }
+            }
         }
     }
 }
@@ -636,14 +875,88 @@ private fun AttendanceScreen(ui: SchoolUiState, viewModel: SchoolViewModel) {
 @Composable
 private fun MoreScreen(ui: SchoolUiState, open: (Route) -> Unit) {
     val lang = ui.language
+    val luckyDate = LocalDate.now().format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault()))
     Column(Modifier.fillMaxSize()) {
         ScreenTopBar(lang.text("More", "Więcej"))
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            item { StudentInfoCard(ui) }
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Star, null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(14.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                lang.text("Lucky number", "Szczęśliwy numerek"),
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                luckyDate,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Text(
+                            ui.data.luckyNumber?.toString() ?: "—",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(end = 24.dp)
+                        )
+                    }
+                }
+            }
             item { MoreRow(Icons.Default.Assignment, lang.text("Homework", "Prace domowe"), lang.text("Assignments and tests", "Zadania i sprawdziany")) { open(Route.HOMEWORK) } }
             item { MoreRow(Icons.Default.EventAvailable, lang.text("Attendance", "Frekwencja"), lang.text("Presence and absences", "Obecności i nieobecności")) { open(Route.ATTENDANCE) } }
             item { MoreRow(Icons.Default.Settings, lang.text("Settings", "Ustawienia"), lang.text("Language, appearance, and sync", "Język, wygląd i synchronizacja")) { open(Route.SETTINGS) } }
             item { MoreRow(Icons.Default.Info, lang.text("About LibreCap", "O LibreCap"), "LibreCap 1.0") {} }
         }
+    }
+}
+
+@Composable
+private fun StudentInfoCard(ui: SchoolUiState) {
+    val profile = ui.data.profile ?: return
+    val lang = ui.language
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(
+            Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                lang.text("Student information", "Informacje o uczniu"),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(profile.fullName, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                ProfileField(lang.text("Class", "Klasa"), profile.className, Modifier.weight(1f), lang)
+                ProfileField(lang.text("Tutor", "Wychowawca"), profile.tutorName, Modifier.weight(1f), lang)
+            }
+            ProfileField(lang.text("Account type", "Typ konta"), profile.type, Modifier.fillMaxWidth(), lang)
+        }
+    }
+}
+
+@Composable
+private fun ProfileField(label: String, value: String, modifier: Modifier, language: AppLanguage) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value.ifBlank { language.text("Not available", "Brak danych") }, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -702,4 +1015,7 @@ private fun EmptyState(title: String, message: String, icon: ImageVector) {
 }
 
 private fun findLesson(data: CachedSchoolData, id: String): TimetableLesson? = data.timetable?.days?.values?.flatten()?.firstOrNull { it.id == id }
+private fun List<GradeRecord>.numericAverage(): Double? = mapNotNull { it.numericValue }.averageOrNull()
+private fun List<GradeRecord>.averageAcrossSubjects(): Double? =
+    groupBy { it.subject }.values.mapNotNull { it.numericAverage() }.averageOrNull()
 private fun List<Double>.averageOrNull(): Double? = if (isEmpty()) null else average()

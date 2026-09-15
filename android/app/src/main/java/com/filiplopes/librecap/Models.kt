@@ -30,7 +30,21 @@ data class GradeRecord(
     val addedDate: String,
     val teacher: String
 ) {
-    val numericValue: Double? get() = value.replace(',', '.').toDoubleOrNull()
+    val numericValue: Double?
+        get() {
+            val normalized = value.trim().replace(',', '.').replace(Regex("\\s+"), "")
+            val grade = Regex("^([1-6])([+-])?$").matchEntire(normalized)
+            if (grade != null) {
+                val base = grade.groupValues[1].toDouble()
+                val adjustment = when (grade.groupValues[2]) {
+                    "+" -> 0.5
+                    "-" -> -0.5
+                    else -> 0.0
+                }
+                return (base + adjustment).coerceIn(1.0, 6.0)
+            }
+            return normalized.toDoubleOrNull()
+        }
     fun belongsTo(semesterFilter: GradeSemester): Boolean {
         if (semesterFilter == GradeSemester.ALL) return true
         val lower = semester.lowercase()
@@ -51,13 +65,30 @@ data class TimetableLesson(
     val teacher: String,
     val hourFrom: String,
     val hourTo: String,
-    val classroom: String
+    val classroom: String,
+    val originalSubject: String? = null,
+    val originalTeacher: String? = null
 ) {
     fun startMinutes(): Int? = hourFrom.toMinutes()
     fun endMinutes(): Int? = hourTo.toMinutes()
+
+    val displaySubject: String
+        get() = originalSubject
+            ?.takeIf { isSubstitution && it.isNotBlank() && !it.equals(subject, ignoreCase = true) }
+            ?.let { "$subject > $it" }
+            ?: subject
+
+    val hasOriginalTeacher: Boolean
+        get() = isSubstitution && !originalTeacher.isNullOrBlank() && !originalTeacher.equals(teacher, ignoreCase = true)
 }
 
 enum class MessageFolder { INBOX, SENT, ANNOUNCEMENTS, NOTES }
+
+data class MessageRecipient(
+    val id: String,
+    val name: String,
+    val group: String
+)
 
 data class TimetableData(
     val nextWeek: Boolean = false,
@@ -96,11 +127,12 @@ data class MessageSummary(
     val sender: String,
     val subject: String,
     val date: String,
-    val folder: MessageFolder = MessageFolder.INBOX
+    val folder: MessageFolder = MessageFolder.INBOX,
+    val content: String = ""
 ) {
     val isLikelyHeaderRow: Boolean
         get() = "$sender $subject $date".lowercase().let {
-            it.contains("temat") || it.contains("subject") || it.contains("wyslano") || it.contains("sent")
+            it.contains("temat") || it.contains("subject") || it.contains("wyslano") || it.contains("sent") || it.contains("napisz") || it.contains("archiwum") || it.contains("etykiety") || it.contains("kosz")
         }
 }
 
@@ -126,6 +158,7 @@ data class CachedSchoolData(
     val attendances: List<AttendanceRecord> = emptyList(),
     val homeworks: List<HomeworkRecord> = emptyList(),
     val messages: List<MessageSummary> = emptyList(),
+    val luckyNumber: Int? = null,
     val lastSync: String? = null,
     val timetableUpdatedAt: String? = null,
     val gradesUpdatedAt: String? = null,

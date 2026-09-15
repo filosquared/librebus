@@ -17,15 +17,13 @@ class CredentialStore(context: Context) {
     private val gson = Gson()
     private val alias = "librecap.credentials"
 
-    fun save(credentials: StoredCredentials) {
-        runCatching {
+    fun save(credentials: StoredCredentials): Boolean = runCatching {
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
             cipher.init(Cipher.ENCRYPT_MODE, secretKey())
             val encrypted = cipher.doFinal(gson.toJson(credentials).toByteArray(StandardCharsets.UTF_8))
             val payload = cipher.iv + encrypted
             preferences.edit().putString("payload", Base64.encodeToString(payload, Base64.NO_WRAP)).apply()
-        }
-    }
+        }.isSuccess
 
     fun load(): StoredCredentials? = runCatching {
         val encoded = preferences.getString("payload", null) ?: return null
