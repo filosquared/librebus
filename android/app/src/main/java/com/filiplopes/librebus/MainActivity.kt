@@ -560,8 +560,15 @@ private fun LessonRow(lesson: TimetableLesson, ui: SchoolUiState, viewModel: Sch
             Column(Modifier.width(50.dp)) { Text(lesson.hourFrom, fontWeight = FontWeight.SemiBold); Text(lesson.hourTo, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             Divider(Modifier.height(42.dp).width(1.dp).padding(horizontal = 4.dp))
             Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                Text(lesson.subject, fontWeight = FontWeight.Medium)
-                Text(listOf(lesson.teacher, lesson.classroom.takeIf { it != "—" }.orEmpty()).filter(String::isNotBlank).joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(lesson.displaySubject, fontWeight = FontWeight.Medium)
+                val teacherText = when {
+                    lesson.teacher.isNotBlank() && lesson.hasOriginalTeacher ->
+                        "${lesson.teacher} > ${lesson.originalTeacher}"
+                    lesson.teacher.isNotBlank() -> lesson.teacher
+                    lesson.hasOriginalTeacher -> lesson.originalTeacher.orEmpty()
+                    else -> ""
+                }
+                Text(listOf(teacherText, lesson.classroom.takeIf { it != "—" }.orEmpty()).filter(String::isNotBlank).joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (lesson.isCancelled || lesson.isSubstitution) Text(if (lesson.isCancelled) ui.language.text("Cancelled", "Odwołana") else ui.language.text("Substitution", "Zastępstwo"), color = if (lesson.isCancelled) MaterialTheme.colorScheme.error else Color(0xFFE78225), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
             }
             if (viewModel.note(lesson.id) != null) Icon(Icons.Default.NoteAlt, ui.language.text("Note", "Notatka"), tint = MaterialTheme.colorScheme.primary)
@@ -573,9 +580,11 @@ private fun LessonRow(lesson: TimetableLesson, ui: SchoolUiState, viewModel: Sch
 private fun LessonDetail(lesson: TimetableLesson, ui: SchoolUiState, viewModel: SchoolViewModel) {
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         item { DetailRow(ui.language.text("Lesson", "Lekcja"), lesson.lessonNumber) }
+        item { DetailRow(ui.language.text("Subject", "Przedmiot"), lesson.displaySubject) }
         item { DetailRow(ui.language.text("Time", "Godzina"), "${lesson.hourFrom} – ${lesson.hourTo}") }
         item { DetailRow(ui.language.text("Classroom", "Sala"), lesson.classroom) }
         item { DetailRow(ui.language.text("Teacher", "Nauczyciel"), lesson.teacher) }
+        if (lesson.hasOriginalTeacher) item { DetailRow(ui.language.text("Replaced teacher", "Zastąpiony nauczyciel"), lesson.originalTeacher.orEmpty()) }
         if (lesson.isCancelled || lesson.isSubstitution) item { Text(if (lesson.isCancelled) ui.language.text("Cancelled", "Odwołana") else ui.language.text("Substitution", "Zastępstwo"), color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 16.dp)) }
         item { Text(ui.language.text("Note", "Notatka"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 20.dp)) }
         item { NoteEditor(lesson.id, ui, viewModel) }

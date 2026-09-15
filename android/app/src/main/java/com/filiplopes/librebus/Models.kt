@@ -51,10 +51,21 @@ data class TimetableLesson(
     val teacher: String,
     val hourFrom: String,
     val hourTo: String,
-    val classroom: String
+    val classroom: String,
+    val originalSubject: String? = null,
+    val originalTeacher: String? = null
 ) {
     fun startMinutes(): Int? = hourFrom.toMinutes()
     fun endMinutes(): Int? = hourTo.toMinutes()
+
+    val displaySubject: String
+        get() = originalSubject
+            ?.takeIf { isSubstitution && it.isNotBlank() && !it.equals(subject, ignoreCase = true) }
+            ?.let { "$subject > $it" }
+            ?: subject
+
+    val hasOriginalTeacher: Boolean
+        get() = isSubstitution && !originalTeacher.isNullOrBlank() && !originalTeacher.equals(teacher, ignoreCase = true)
 }
 
 enum class MessageFolder { INBOX, SENT, ANNOUNCEMENTS, NOTES }

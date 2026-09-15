@@ -172,6 +172,7 @@ class LibrusClient {
         val timetable = apiJson("Timetables?weekStart=$dateFrom").obj("Timetable")
         val activities = apiJson("Timetables/OtherActivitiesRegister?dateFrom=$dateFrom&dateTo=$dateTo&hideOutdatedEntries=false")
         val classrooms = classroomMap(apiJson("TimetableEntries"))
+        val substitutionDetails = fetchTimetableSubstitutions(dateFrom, dateTo)
         val lessonsByDay = mutableMapOf<String, MutableList<TimetableLesson>>()
         val lessonByStart = mutableMapOf<String, String>()
 
@@ -180,22 +181,67 @@ class LibrusClient {
             val dayName = date.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, Locale.ENGLISH)
             if (!rawDay.isJsonArray) return@forEach
             rawDay.asJsonArray.forEachIndexed { index, rawEntry ->
-                val lesson = rawEntry.asJsonArray.firstOrNull()?.asJsonObject ?: return@forEachIndexed
+                val entries = rawEntry.asJsonArray
+                    .mapNotNull { it.takeIf(JsonElement::isJsonObject)?.asJsonObject }
+                if (entries.isEmpty()) return@forEachIndexed
+
+                val hasSubstitution = entries.any { it.bool("IsSubstitutionClass") }
+                // Librus sends the regular lesson first and the replacement lesson
+                // after it. Keep both so the UI can explain what changed.
+                val effectiveIndex = if (hasSubstitution && entries.size > 1) entries.lastIndex else 0
+                val lesson = entries[effectiveIndex]
+                val originalEntry = entries.firstOrNull().takeIf { effectiveIndex != 0 }
+                val directOriginalSubject = lesson.firstString(
+                    "OriginalSubjectName", "PreviousSubjectName", "OriginalLessonSubject"
+                )
+                val nestedOriginalSubject = lesson.firstNestedString(
+                    "OriginalSubject", "PreviousSubject", "OriginalLessonSubject", field = "Name"
+                )
+                val originalSubject = (originalEntry?.obj("Subject")?.string("Name").orEmpty())
+                    .ifBlank { directOriginalSubject }
+                    .ifBlank { nestedOriginalSubject }
+                    .takeIf { it.isNotBlank() && !it.equals(lesson.obj("Subject").string("Name"), ignoreCase = true) }
+                val directOriginalTeacher = lesson.firstString(
+                    "OriginalTeacherName", "PreviousTeacherName", "FormerTeacherName"
+                )
+                val nestedOriginalTeacher = lesson.firstNestedTeacherName(
+                    "OriginalTeacher", "PreviousTeacher", "FormerTeacher"
+                )
+                val originalTeacher = teacherName(originalEntry?.obj("Teacher") ?: JsonObject())
+                    .ifBlank { directOriginalTeacher }
+                    .ifBlank { nestedOriginalTeacher }
+                    .takeIf { it.isNotBlank() && !it.equals(teacherName(lesson.obj("Teacher")), ignoreCase = true) }
                 val hourFrom = lesson.string("HourFrom")
                 val lessonNumber = lesson.string("LessonNo", "-")
+                val apiSubject = lesson.obj("Subject").string("Name", "Lesson")
+                val apiTeacher = teacherName(lesson.obj("Teacher"))
+                val substitution = substitutionDetails["$dateKey-$hourFrom"]
+                val replacementSubject = substitution?.subject?.takeIf(String::isNotBlank)
+                val replacementTeacher = substitution?.teacher?.takeIf(String::isNotBlank)
+                val replacementClassroom = substitution?.classroom?.takeIf(String::isNotBlank)
+                val currentSubject = replacementSubject ?: apiSubject
+                val currentTeacher = replacementTeacher ?: apiTeacher
+                val resolvedOriginalSubject = substitution?.originalSubject?.takeIf(String::isNotBlank)
+                    ?: originalSubject
+                    ?: apiSubject.takeIf { replacementSubject != null && !it.equals(currentSubject, ignoreCase = true) }
+                val resolvedOriginalTeacher = substitution?.originalTeacher?.takeIf(String::isNotBlank)
+                    ?: originalTeacher
+                    ?: apiTeacher.takeIf { replacementTeacher != null && !it.equals(currentTeacher, ignoreCase = true) }
                 lessonByStart[hourFrom] = lessonNumber
                 val classroomId = lesson.obj("Classroom").string("Id")
                 lessonsByDay.getOrPut(dayName) { mutableListOf() }.add(
                     TimetableLesson(
                         id = "$dateKey-$lessonNumber-$index",
                         lessonNumber = lessonNumber,
-                        subject = lesson.obj("Subject").string("Name", "Lesson"),
-                        isSubstitution = lesson.bool("IsSubstitutionClass"),
+                        subject = currentSubject,
+                        isSubstitution = hasSubstitution || substitution != null || resolvedOriginalSubject != null || resolvedOriginalTeacher != null,
                         isCancelled = lesson.bool("IsCanceled"),
-                        teacher = teacherName(lesson.obj("Teacher")),
+                        teacher = currentTeacher,
                         hourFrom = hourFrom,
                         hourTo = lesson.string("HourTo"),
-                        classroom = classrooms[classroomId] ?: "—"
+                        classroom = replacementClassroom ?: classrooms[classroomId] ?: "—",
+                        originalSubject = resolvedOriginalSubject,
+                        originalTeacher = resolvedOriginalTeacher
                     )
                 )
             }
@@ -323,6 +369,82 @@ class LibrusClient {
         return MessageDetail(subject.ifEmpty { "Message" }, content = content)
     }
 
+    private data class SubstitutionDetails(
+        val subject: String = "",
+        val originalSubject: String = "",
+        val teacher: String = "",
+        val originalTeacher: String = "",
+        val classroom: String = ""
+    )
+
+    private fun fetchTimetableSubstitutions(dateFrom: String, dateTo: String): Map<String, SubstitutionDetails> {
+        val html = runCatching {
+            portalHtml(
+                "/przegladaj_plan_lekcji",
+                method = "POST",
+                body = formBody(mapOf("tydzien" to "${dateFrom}_${dateTo}"))
+            )
+        }.getOrElse {
+            Log.w(LOG_TAG, "Could not load timetable substitution details")
+            return emptyMap()
+        }
+        val details = Jsoup.parse(html).select("[data-date][data-time_from]").mapNotNull { cell ->
+            val title = cell.selectFirst("a[title]")?.attr("title").orEmpty()
+            val info = cell.selectFirst(".plan-lekcji-info")?.text().orEmpty()
+            val (subject, originalSubject) = substitutionParts(substitutionValue(title, "Przedmiot"))
+            val (teacherRaw, originalTeacherRaw) = substitutionParts(substitutionValue(title, "Nauczyciel"))
+            val (classroom, _) = substitutionParts(substitutionValue(title, "Sala"))
+            val teacher = normalizePortalTeacher(teacherRaw)
+            val originalTeacher = normalizePortalTeacher(originalTeacherRaw)
+            if (!info.contains("zastęp", ignoreCase = true) &&
+                subject.isBlank() && teacher.isBlank() && classroom.isBlank()
+            ) return@mapNotNull null
+            val date = cell.attr("data-date").trim()
+            val start = cell.attr("data-time_from").trim()
+            if (date.isBlank() || start.isBlank()) return@mapNotNull null
+            "$date-$start" to SubstitutionDetails(
+                subject = subject,
+                originalSubject = originalSubject,
+                teacher = teacher,
+                originalTeacher = originalTeacher,
+                classroom = classroom
+            )
+        }.toMap()
+        Log.d(LOG_TAG, "Timetable substitution details parsed: entries=${details.size}")
+        return details
+    }
+
+    private fun substitutionValue(title: String, key: String): String = title
+        .replace("<b>", "", ignoreCase = true)
+        .replace("</b>", "", ignoreCase = true)
+        .replace("&nbsp;", " ", ignoreCase = true)
+        .split(Regex("<br\\s*/?>|\\r?\\n|\\|"))
+        .firstOrNull { it.trimStart().startsWith("$key:", ignoreCase = true) }
+        ?.substringAfter(':')
+        ?.trim()
+        .orEmpty()
+
+    private fun substitutionParts(value: String): Pair<String, String> {
+        val parts = value
+            .split(Regex("\\s*(?:->|→)\\s*"))
+            .map(String::trim)
+            .filter(String::isNotBlank)
+        return when {
+            parts.size >= 2 -> parts.first() to parts.last()
+            parts.size == 1 -> parts.first() to ""
+            else -> "" to ""
+        }
+    }
+
+    private fun normalizePortalTeacher(value: String): String {
+        val parts = value.trim().split(Regex("\\s+")).filter(String::isNotBlank)
+        return if (parts.size > 1) {
+            parts.drop(1).joinToString(" ") + " " + parts.first()
+        } else {
+            value.trim()
+        }
+    }
+
     private fun apiJson(path: String): JsonObject {
         val response = request(apiBase + path, headers = mapOf("Accept" to "application/json"))
         if (isLoginRedirect(response)) throw LibrusClientError(LibrusErrorKind.SESSION_EXPIRED, "Your Librus session expired. Librebus will try to sign in again.")
@@ -330,9 +452,11 @@ class LibrusClient {
         return parseObject(response.bytes, path)
     }
 
-    private fun portalHtml(path: String): String {
+    private fun portalHtml(path: String, method: String = "GET", body: String? = null): String {
         val response = request(
             portalBase + path,
+            method = method,
+            body = body,
             headers = mapOf("Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
         )
         if (isLoginRedirect(response)) throw LibrusClientError(LibrusErrorKind.SESSION_EXPIRED, "Your Librus session expired. Librebus will try to sign in again.")
@@ -441,6 +565,18 @@ class LibrusClient {
         val classroom = entry.obj("Classroom")
         classroom.string("Id").takeIf(String::isNotEmpty)?.let { it to classroom.string("Symbol", classroom.string("Name", "—")) }
     }.toMap()
+    private fun JsonObject.firstString(vararg keys: String): String = keys.asSequence()
+        .map { string(it).trim() }
+        .firstOrNull(String::isNotEmpty)
+        ?: ""
+    private fun JsonObject.firstNestedString(vararg keys: String, field: String): String = keys.asSequence()
+        .map { obj(it).string(field).trim() }
+        .firstOrNull(String::isNotEmpty)
+        ?: ""
+    private fun JsonObject.firstNestedTeacherName(vararg keys: String): String = keys.asSequence()
+        .map { teacherName(obj(it)).trim() }
+        .firstOrNull(String::isNotEmpty)
+        ?: ""
     private fun teacherName(teacher: JsonObject): String = listOf(teacher.string("FirstName"), teacher.string("LastName")).filter(String::isNotEmpty).joinToString(" ")
     private fun parseDate(value: String): LocalDate? = try { LocalDate.parse(value.take(10), DATE_FORMAT) } catch (_: DateTimeParseException) { null }
     private fun messageId(href: String): String = href.substringAfter("wiadomosci/", "").substringBefore('?').trim('/').replace('/', '-')
