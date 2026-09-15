@@ -96,11 +96,12 @@ data class MessageSummary(
     val sender: String,
     val subject: String,
     val date: String,
-    val folder: MessageFolder = MessageFolder.INBOX
+    val folder: MessageFolder = MessageFolder.INBOX,
+    val content: String = ""
 ) {
     val isLikelyHeaderRow: Boolean
         get() = "$sender $subject $date".lowercase().let {
-            it.contains("temat") || it.contains("subject") || it.contains("wyslano") || it.contains("sent")
+            it.contains("temat") || it.contains("subject") || it.contains("wyslano") || it.contains("sent") || it.contains("napisz") || it.contains("archiwum") || it.contains("etykiety") || it.contains("kosz")
         }
 }
 

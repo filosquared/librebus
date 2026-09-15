@@ -289,7 +289,7 @@ private fun AuthenticatedApp(ui: SchoolUiState, viewModel: SchoolViewModel) {
                     modifier = Modifier.fillMaxSize()
                 ) { screen ->
                     when (screen) {
-                        Route.HOME -> HomeScreen(ui, viewModel, { route = Route.SETTINGS }, { go(Route.HOMEWORK, "") }, { go(Route.ATTENDANCE, "") }, { route = Route.MESSAGES }, { go(Route.LESSON_DETAIL, it) })
+                        Route.HOME -> HomeScreen(ui, viewModel, { go(Route.HOMEWORK, "") }, { go(Route.ATTENDANCE, "") }, { route = Route.MESSAGES }, { go(Route.LESSON_DETAIL, it) })
                         Route.GRADES -> GradesScreen(ui, viewModel) { go(Route.GRADE_DETAIL, it) }
                         Route.SCHEDULE -> ScheduleScreen(ui, viewModel) { go(Route.LESSON_DETAIL, it) }
                         Route.MESSAGES -> MessagesScreen(ui, viewModel) { go(Route.MESSAGE_DETAIL, it) }
@@ -371,7 +371,7 @@ private fun DetailScaffold(title: String, onBack: () -> Unit, content: @Composab
 }
 
 @Composable
-private fun HomeScreen(ui: SchoolUiState, viewModel: SchoolViewModel, settings: () -> Unit, homework: () -> Unit, attendance: () -> Unit, messages: () -> Unit, openLesson: (String) -> Unit) {
+private fun HomeScreen(ui: SchoolUiState, viewModel: SchoolViewModel, homework: () -> Unit, attendance: () -> Unit, messages: () -> Unit, openLesson: (String) -> Unit) {
     val lang = ui.language
     Column(Modifier.fillMaxSize()) {
         ScreenTopBar(ui.data.profile?.fullName ?: "Librebus", actions = {
@@ -382,7 +382,6 @@ private fun HomeScreen(ui: SchoolUiState, viewModel: SchoolViewModel, settings: 
                     Icon(Icons.Default.Refresh, lang.text("Sync now", "Synchronizuj"))
                 }
             }
-            IconButton(onClick = settings) { Icon(Icons.Default.Settings, lang.text("Settings", "Ustawienia")) }
         })
         LazyColumn(contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             item {
@@ -391,11 +390,9 @@ private fun HomeScreen(ui: SchoolUiState, viewModel: SchoolViewModel, settings: 
                     Text(ui.data.profile?.firstName ?: "Librebus", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
                     ui.data.profile?.let { profile ->
                         Text("${lang.text("Class", "Klasa")} ${profile.className}", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        if (profile.tutorName.isNotBlank()) Text("${profile.tutorName} (${lang.text("tutor", "wychowawca")})", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
-            item { TodayCard(ui, viewModel, openLesson) }
             item { Text(lang.text("Quick actions", "Szybkie akcje"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -409,6 +406,7 @@ private fun HomeScreen(ui: SchoolUiState, viewModel: SchoolViewModel, settings: 
                     SummaryCard(lang.text("Attendance", "Frekwencja"), ui.data.attendances.count { !it.isPresence }.toString(), Icons.Default.EventAvailable, Color(0xFFD45151), attendance, Modifier.weight(1f))
                 }
             }
+            item { TodayCard(ui, viewModel, openLesson) }
         }
     }
 }
@@ -647,7 +645,9 @@ private fun MessagesScreen(ui: SchoolUiState, viewModel: SchoolViewModel, open: 
 
 @Composable
 private fun MessageDetailScreen(summary: MessageSummary, ui: SchoolUiState, viewModel: SchoolViewModel, onBack: () -> Unit) {
-    LaunchedEffect(summary.id) { viewModel.loadMessage(summary.id) }
+    LaunchedEffect(summary.id) {
+        if (summary.folder != MessageFolder.ANNOUNCEMENTS) viewModel.loadMessage(summary.id)
+    }
     val detail = viewModel.currentMessage.value
     Column(Modifier.fillMaxSize()) {
         ScreenTopBar(ui.language.text("Message", "Wiadomość"), back = true, onBack = onBack)
@@ -655,7 +655,15 @@ private fun MessageDetailScreen(summary: MessageSummary, ui: SchoolUiState, view
             item { Text(summary.subject, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
             item { Text("${summary.sender} · ${summary.date}", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             item { Divider(Modifier.padding(vertical = 4.dp)) }
-            item { if (detail == null) Text(ui.language.text("Loading message…", "Wczytywanie wiadomości…"), color = MaterialTheme.colorScheme.onSurfaceVariant) else Text(detail.content.ifBlank { ui.language.text("No message content.", "Brak treści wiadomości.") }) }
+            item {
+                if (summary.folder == MessageFolder.ANNOUNCEMENTS) {
+                    Text(summary.content.ifBlank { ui.language.text("No announcement content.", "Brak treści ogłoszenia.") })
+                } else if (detail == null) {
+                    Text(ui.language.text("Loading message…", "Wczytywanie wiadomości…"), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    Text(detail.content.ifBlank { ui.language.text("No message content.", "Brak treści wiadomości.") })
+                }
+            }
         }
     }
 }

@@ -292,7 +292,27 @@ class LibrusClient {
         }
         val candidateRows = rows.count { it.select("td").size > 1 }
         Log.d(LOG_TAG, "Messages page parsed: rows=" + rows.size + ", candidateRows=" + candidateRows + ", messages=" + messages.size)
-        return messages
+        return messages + fetchAnnouncements()
+    }
+
+    private fun fetchAnnouncements(): List<MessageSummary> {
+        val notices = apiJson("SchoolNotices").array("SchoolNotices")
+        val announcements = notices.mapNotNull { raw ->
+            val noticeId = raw.string("Id")
+            if (noticeId.isEmpty()) return@mapNotNull null
+            val subject = raw.string("Subject").trim()
+            val content = Jsoup.parse(raw.string("Content")).text().trim()
+            MessageSummary(
+                id = "announcement-$noticeId",
+                sender = "Librus",
+                subject = subject.ifEmpty { "Announcement" },
+                date = raw.string("CreationDate").ifEmpty { raw.string("StartDate") }.trim(),
+                folder = MessageFolder.ANNOUNCEMENTS,
+                content = content
+            )
+        }
+        Log.d(LOG_TAG, "School notices parsed: notices=" + notices.size + ", announcements=" + announcements.size)
+        return announcements
     }
 
     fun fetchMessage(id: String): MessageDetail {
