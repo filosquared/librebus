@@ -17,7 +17,7 @@
 		<b style="font-size: 16px;">This is a demo tier.</b>
 		<div id="demotext">Subscription ends in <b id="demodays"></b> days. Enjoy all features!</div>
 	</div>
-	<div id="notifications"></div>
+	<div id="notifications" aria-live="polite" aria-atomic="false"></div>
 	<div class="top">
 		<h1>Librusik</h1><b id="tier" class="tiers tier"></b>
 		<button class="gotoapp" onclick="agou('panel')">Panel</button><br>
@@ -42,6 +42,6 @@
 	</div>
 	<center>
 		<div id="content"></div>
-		<div id="darken" onclick="toggle_notifications(false)"></div>
+		<div id="darken" aria-hidden="true"></div>
 	</center>
 </body>

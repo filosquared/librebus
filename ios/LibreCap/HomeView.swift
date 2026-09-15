@@ -1,0 +1,238 @@
+import SwiftUI
+
+struct DashboardView: View {
+    @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var settings: AppSettings
+    @Binding var showSettings: Bool
+
+    var body: some View {
+        ScrollView {
+            TimelineView(.periodic(from: .now, by: 60)) { context in
+                VStack(alignment: .leading, spacing: 20) {
+                    HomeHeader(profile: model.data.profile, appName: settings.appName, settings: settings)
+
+                    if let errorMessage = model.errorMessage {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label(errorMessage, systemImage: "wifi.exclamationmark")
+                                .font(.subheadline)
+                                .foregroundStyle(.orange)
+                            Button(settings.text(.tryAgain)) {
+                                Task { await model.retry() }
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.orange)
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
+                    }
+
+                    if let release = model.availableUpdate {
+                        ReleaseUpdateCard(release: release, settings: settings)
+                    }
+
+                    Text(settings.text(.quickActions))
+                        .font(.headline)
+
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                        NavigationLink { HomeworkView(filter: .assessments) } label: {
+                            SummaryCard(title: settings.text(.tests), value: assessmentCount, icon: "checklist", color: .purple)
+                        }
+                        NavigationLink { HomeworkView(filter: .all) } label: {
+                            SummaryCard(title: settings.text(.homework), value: "\(model.data.homeworks.count)", icon: "doc.text.fill", color: .orange)
+                        }
+                        NavigationLink { MessagesView() } label: {
+                            SummaryCard(title: settings.text(.messages), value: "\(model.data.messages.filter { !$0.isLikelyHeaderRow }.count)", icon: "envelope.fill", color: .teal)
+                        }
+                        NavigationLink { AttendanceView() } label: {
+                            SummaryCard(title: settings.text(.attendance), value: "\(absenceCount)", icon: "calendar.badge.exclamationmark", color: .red)
+                        }
+                    }
+
+                    TodayScheduleCard(
+                        timetable: model.data.timetable,
+                        now: context.date,
+                        settings: settings
+                    )
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+            }
+        }
+        .navigationTitle(settings.appName)
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button(action: syncNow) {
+                    if model.isSyncing {
+                        ProgressView()
+                    } else {
+                        Image(systemName: "arrow.triangle.2.circlepath.circle")
+                    }
+                }
+                .accessibilityLabel(settings.text(.syncNow))
+                .disabled(model.isSyncing)
+            }
+        }
+    }
+
+    private var assessmentCount: String {
+        "\(model.data.homeworks.filter(\.isAssessment).count)"
+    }
+
+    private var absenceCount: Int {
+        model.data.attendances.filter { !$0.isPresence }.count
+    }
+
+    private func syncNow() {
+        Task { await model.sync() }
+    }
+}
+
+private struct ReleaseUpdateCard: View {
+    @Environment(\.openURL) private var openURL
+    let release: GitHubRelease
+    let settings: AppSettings
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(settings.text(.updateAvailable), systemImage: "arrow.down.circle.fill")
+                .font(.headline)
+                .foregroundStyle(.indigo)
+            Text("\(release.displayName) (\(release.tagName))")
+                .font(.subheadline.weight(.semibold))
+            Text(settings.text(.updateAvailableDescription))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Button(settings.text(.viewRelease)) {
+                openURL(release.htmlURL)
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.indigo.opacity(0.1), in: RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+private struct HomeHeader: View {
+    let profile: StudentProfile?
+    let appName: String
+    let settings: AppSettings
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(profile == nil ? appName : settings.text(.goodToSee))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            if let profile {
+                Text(profile.firstName)
+                    .font(.largeTitle.weight(.bold))
+                Text("\(settings.text(.className)) \(profile.className)")
+                    .foregroundStyle(.secondary)
+            } else {
+                Text(appName)
+                    .font(.largeTitle.weight(.bold))
+            }
+        }
+    }
+}
+
+private struct TodayScheduleCard: View {
+    let timetable: TimetableData?
+    let now: Date
+    let settings: AppSettings
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(settings.text(.today))
+                        .font(.headline)
+                    Text(SchoolAppDate.formatted(now, language: settings.language))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                NavigationLink(settings.text(.seeAll)) { ScheduleView() }
+                    .font(.subheadline.weight(.semibold))
+            }
+
+            if let timetable,
+               let dayDate = SchoolAppDate.dayDate(for: SchoolAppDate.dayKey(for: now), timetable: timetable) {
+                let lessons = (timetable.days[SchoolAppDate.dayKey(for: now)] ?? []).filter { lesson in
+                    guard let end = lesson.endDate(on: dayDate) else { return true }
+                    return end > now
+                }
+                if let current = lessons.first(where: { lesson in
+                    guard let start = lesson.startDate(on: dayDate), let end = lesson.endDate(on: dayDate) else { return false }
+                    return start <= now && end > now
+                }) {
+                    CurrentLessonBanner(lesson: current, settings: settings)
+                }
+                ForEach(lessons.prefix(3)) { lesson in
+                    NavigationLink { LessonDetailView(lesson: lesson, dayName: SchoolAppDate.dayKey(for: now)) } label: {
+                        LessonRow(lesson: lesson)
+                    }
+                    .buttonStyle(.plain)
+                }
+                if lessons.isEmpty {
+                    Text(settings.text(.noRemainingLessons))
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                Text(settings.text(.noLessonsToday))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.indigo.opacity(0.08), in: RoundedRectangle(cornerRadius: 18))
+    }
+}
+
+private struct CurrentLessonBanner: View {
+    let lesson: TimetableLesson
+    let settings: AppSettings
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "play.fill")
+                .foregroundStyle(.indigo)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(settings.text(.currentLesson))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.indigo)
+                Text(lesson.displaySubject)
+                    .font(.body.weight(.semibold))
+            }
+            Spacer()
+        }
+        .padding(10)
+        .background(.indigo.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+struct SummaryCard: View {
+    let title: String
+    let value: String
+    let icon: String
+    let color: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Image(systemName: icon)
+                .foregroundStyle(color)
+            Text(value)
+                .font(.title.weight(.bold))
+            Text(title)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+        }
+        .frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
+        .padding(16)
+        .background(color.opacity(0.1), in: RoundedRectangle(cornerRadius: 16))
+        .contentShape(RoundedRectangle(cornerRadius: 16))
+    }
+}

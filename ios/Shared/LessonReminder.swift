@@ -1,8 +1,8 @@
 import Foundation
 
 struct LessonReminder: Codable, Equatable, Identifiable {
-    static let category = "LIBREBUS_LESSON_ENDING"
-    static let identifierPrefix = "librebus.lesson-ending."
+    static let category = "LIBRECAP_LESSON_ENDING"
+    static let identifierPrefix = "librecap.lesson-ending."
     static let payloadKey = "lessonReminder"
 
     var id: String

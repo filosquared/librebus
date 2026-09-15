@@ -3,6 +3,11 @@ import Foundation
 
 struct LibrusCredentials { var username: String; var password: String }
 
+enum LibrusClientError: Error, Equatable {
+    case invalidCredentials
+    case sessionUnauthorized
+}
+
 @MainActor final class KeychainStore {
     static var credentials: LibrusCredentials?
     func load() -> LibrusCredentials? { Self.credentials }
@@ -13,7 +18,8 @@ struct LibrusCredentials { var username: String; var password: String }
 @MainActor final class LocalStore {
     static var cached = CachedSchoolData.empty
     func load() -> CachedSchoolData { Self.cached }
-    func save(_ data: CachedSchoolData) { Self.cached = data }
+    @discardableResult
+    func save(_ data: CachedSchoolData) -> Bool { Self.cached = data; return true }
     func clear() { Self.cached = .empty }
 }
 
@@ -44,6 +50,12 @@ struct LibrusCredentials { var username: String; var password: String }
     func fetchMessage(id: String) async throws -> MessageDetail { MessageDetail(subject: "", sender: "", date: "", content: "") }
 }
 
+struct NoopReleaseProvider: GitHubReleaseProviding {
+    func fetchLatest() async throws -> GitHubRelease {
+        throw NSError(domain: "OfflineFixture", code: 2)
+    }
+}
+
 @main @MainActor struct AppModelChecks {
     static func waitForSuspension() async {
         for _ in 0..<1000 {
@@ -60,7 +72,7 @@ struct LibrusCredentials { var username: String; var password: String }
     }
 
     static func main() async {
-        let model = AppModel()
+        let model = AppModel(releaseProvider: NoopReleaseProvider())
         await model.login(username: "fixture-student", password: "not-a-real-password")
         precondition(model.isAuthenticated && model.data.profile != nil)
         precondition(model.data.timetableUpdatedAt != nil && model.data.gradesUpdatedAt != nil && model.data.homeworksUpdatedAt != nil)
@@ -95,7 +107,7 @@ struct LibrusCredentials { var username: String; var password: String }
 
         KeychainStore.credentials = LibrusCredentials(username: "fixture", password: "fake")
         LocalStore.cached.profile = LibrusClient.profile
-        let restoring = AppModel()
+        let restoring = AppModel(releaseProvider: NoopReleaseProvider())
         precondition(restoring.isReady && restoring.isAuthenticated, "Cached data should remain readable during restore")
         await waitForSuspension()
         restoring.logout()

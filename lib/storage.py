@@ -13,7 +13,7 @@ from typing import Any
 class SQLiteStore:
 	def __init__(self, data_dir: str | os.PathLike[str]):
 		self.data_dir = Path(data_dir)
-		self.path = self.data_dir / "librebus.sqlite3"
+		self.path = self.data_dir / "librecap.sqlite3"
 
 	def _connect(self) -> sqlite3.Connection:
 		connection = sqlite3.connect(self.path, timeout=10)
@@ -23,6 +23,7 @@ class SQLiteStore:
 
 	def initialize(self) -> None:
 		self.data_dir.mkdir(parents=True, exist_ok=True)
+		self._migrate_database_name()
 		with self._connect() as connection:
 			connection.execute("PRAGMA journal_mode = WAL")
 			connection.execute(
@@ -35,6 +36,32 @@ class SQLiteStore:
 			os.chmod(self.path, 0o600)
 		except OSError:
 			pass
+
+	def _migrate_database_name(self) -> None:
+		"""Move a single pre-existing database to the current storage name."""
+		if self.path.exists():
+			return
+		candidates = [
+			candidate
+			for candidate in self.data_dir.glob("*.sqlite3")
+			if candidate != self.path and candidate.is_file()
+		]
+		if len(candidates) != 1:
+			return
+		legacy_path = candidates[0]
+		paths = [
+			(legacy_path.with_name(legacy_path.name + suffix), self.path.with_name(self.path.name + suffix))
+			for suffix in ("-wal", "-shm", "")
+		]
+		if any(destination.exists() for _, destination in paths):
+			return
+		try:
+			for source, destination in paths:
+				if source.exists():
+					os.replace(source, destination)
+		except OSError:
+			# The next start can retry without changing the database contents.
+			return
 
 	def load(self, config_default: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
 		storage_exists = self.path.exists()

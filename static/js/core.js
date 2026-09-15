@@ -24,14 +24,14 @@ function agou(where) {
 	}, 320);
 }
 function setCookie(user) {
-	if (user) localStorage.setItem("librebus_last_user", user);
+	if (user) localStorage.setItem("librecap_last_user", user);
 	document.cookie = "librusik_u=; Max-Age=0; path=/";
 }
 function getCookie() {
-	return {"username": localStorage.getItem("librebus_last_user") || ""};
+	return {"username": localStorage.getItem("librecap_last_user") || ""};
 }
 function rmCookie() {
-	localStorage.removeItem("librebus_last_user");
+	localStorage.removeItem("librecap_last_user");
 	document.cookie = "librusik_u=; Max-Age=0; path=/";
 	post("logout", {}, function() { agou("login"); });
 }
@@ -58,7 +58,8 @@ function indexpage() {
 	post("api", {
 		"method": "get_notifications"
 	}, function(data) {
-		getByID("notifications").innerHTML = ""
+		let container = getByID("notifications");
+		container.innerHTML = ""
 		if (data.status == 200) {
 			let resp = JSON.parse(data.responseText);
 			showNotifications(resp)
@@ -67,16 +68,31 @@ function indexpage() {
 }
 
 function mkNotification(icon, text, value) {
-	if (value <= 0) return;
-	let html = `<div>
-		<div class="icon">${icon}</div>
-		<div class="text">New ${text}: <b>${value}</b></div>
-		<div class="icon close" onclick="closeNotification(this)"></div>
-	</div>`;
-	getByID("notifications").innerHTML += html;
+	if (!Number.isFinite(value) || value <= 0) return;
+	let block = document.createElement("div");
+	let iconNode = document.createElement("div");
+	iconNode.className = "icon";
+	iconNode.innerText = icon;
+	let textNode = document.createElement("div");
+	textNode.className = "text";
+	textNode.innerText = `New ${text}: `;
+	let countNode = document.createElement("b");
+	countNode.innerText = value;
+	textNode.appendChild(countNode);
+	let close = document.createElement("button");
+	close.className = "icon close";
+	close.type = "button";
+	close.title = "Dismiss notification";
+	close.setAttribute("aria-label", "Dismiss notification");
+	close.onclick = function() { closeNotification(close); };
+	block.appendChild(iconNode);
+	block.appendChild(textNode);
+	block.appendChild(close);
+	getByID("notifications").appendChild(block);
 }
 
 function showNotifications(obj) {
+	if (!obj || typeof obj !== "object") return;
 	let iconMap = {
 		"grades": "book",
 		"exams": "history_edu",
@@ -84,9 +100,14 @@ function showNotifications(obj) {
 		"conferences": "groups"
 	}
 	for (let subj in obj) {
-		let icon = iconMap[subj]
-		if (!icon) icon = "notifications";
-		mkNotification(icon, subj, obj[subj])
+		let icon = iconMap[subj] || "notifications";
+		let label = {
+			"grades": "grades",
+			"exams": "exams",
+			"absences": "absences",
+			"conferences": "parent-teacher conferences"
+		}[subj] || subj;
+		mkNotification(icon, label, Number(obj[subj]));
 	}
 	let d = getByID("notifications");
 	d.style.height = `${d.scrollHeight}px`;
@@ -245,7 +266,7 @@ function delacc() {
 		"method": "delaccount"
 	}, function(data) {
 		if (data.status == 200) {
-			localStorage.removeItem("librebus_last_user");
+			localStorage.removeItem("librecap_last_user");
 			post("logout", {}, function() {});
 			mkerr("succ", "succ", "Account is gone", "Come back soon!");
 			var btns = document.getElementsByTagName('button');

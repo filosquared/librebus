@@ -1,7 +1,7 @@
 <resources>
-    <style name="Theme.Librebus" parent="android:style/Theme.Material.Light.NoActionBar">
+    <style name="Theme.LibreCap" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">@color/librebus_indigo</item>
+        <item name="android:colorAccent">@color/librecap_indigo</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightNavigationBar">true</item>
         <item name="android:statusBarColor">@android:color/transparent</item>

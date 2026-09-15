@@ -1,24 +1,24 @@
-# Librebus for Apple Watch
+# LibreCap for Apple Watch
 
-A native SwiftUI companion for **watchOS 9 or later**, fed by Librebus on its
-paired iPhone (iOS 16 or later). No Librebus server, Watch login or iCloud setup.
+A native SwiftUI companion for **watchOS 9 or later**, fed by LibreCap on its
+paired iPhone (iOS 16 or later). No LibreCap server, Watch login or iCloud setup.
 
 ## Install from Xcode
 
-1. Open `ios/Librebus.xcodeproj` in full Xcode with watchOS platform support installed.
+1. Open `ios/LibreCap.xcodeproj` in full Xcode with watchOS platform support installed.
 2. Under Signing & Capabilities, choose the **same development team** for
-   `Librebus` and `LibrebusWatch`. If you customize identifiers, keep the Watch
+   `LibreCap` and `LibreCapWatch`. If you customize identifiers, keep the Watch
    identifier prefixed by the phone identifier and update
-   `WKCompanionAppBundleIdentifier` in `watchOS/LibrebusWatch/Info.plist` to match.
-3. Select the **Librebus** scheme and your iPhone, then Run to install the updated
+   `WKCompanionAppBundleIdentifier` in `watchOS/LibreCapWatch/Info.plist` to match.
+3. Select the **LibreCap** scheme and your iPhone, then Run to install the updated
    phone app. Sign in on the phone and refresh school data.
-4. Select the **LibrebusWatch** scheme and the Apple Watch paired with that
+4. Select the **LibreCapWatch** scheme and the Apple Watch paired with that
    iPhone, then Run. Enable Developer Mode if Xcode requests it.
 5. Open both apps. On the phone, **More → Apple Watch → Send latest data to Watch**
    queues its saved snapshot. On Watch, **Get iPhone data** requests the latest
    saved phone data; it does not trigger a new Librus login or server refresh.
 
-The iPhone build embeds `LibrebusWatch.app`. It can also appear under Available
+The iPhone build embeds `LibreCapWatch.app`. It can also appear under Available
 Apps in Apple's Watch app; install it there if automatic installation is off.
 The Mac target does not embed or directly feed the Watch app.
 Sharing an Apple Account alone does not add Mac/iCloud syncing.
@@ -41,7 +41,7 @@ timetable refresh before they can be sent to Watch.
 ## Five-minute lesson alerts
 
 Install the updated **iPhone and Watch apps**, then enable **More → Apple Watch →
-Lesson-ending alerts** on iPhone. Open Librebus on Watch and tap **Allow
+Lesson-ending alerts** on iPhone. Open LibreCap on Watch and tap **Allow
 notifications** if prompted by the Lesson alerts section. The setting is off by
 default and is saved on the iPhone.
 
@@ -54,7 +54,7 @@ alerts. The next lesson's card also shows its start time.
 
 watchOS presents a notification, **not a forced app launch**. The custom Watch
 notification interface contains the lesson card; tapping it opens the card in
-Librebus. Notification settings, Focus, wrist/lock state and the OS control
+LibreCap. Notification settings, Focus, wrist/lock state and the OS control
 whether you see/hear an alert immediately. No critical-alert bypass is used.
 
 After sync and permission, reminders are scheduled locally on Watch, so the
@@ -131,9 +131,9 @@ Simulator builds and offline tests alone do not prove paired-device delivery.
 - `ios/Shared/WatchSnapshot.swift`: versioned provider-neutral wire data and dates.
 - `ios/Shared/WatchSnapshotBuilder.swift`: privacy projection and payload limits.
 - `ios/Shared/LessonReminder.swift`: deterministic lesson-ending reminder plan.
-- `watchOS/LibrebusWatch/WatchLessonAlerts.swift`: local notification scheduling.
-- `watchOS/LibrebusWatch/LessonReminderView.swift`: Watch notification/card UI.
-- `ios/Librebus/PhoneWatchSync.swift`: iPhone transport and status section.
-- `watchOS/LibrebusWatch/WatchSchoolStore.swift`: Watch delivery and request state.
-- `watchOS/LibrebusWatch/WatchSnapshotCache.swift`: protected offline persistence.
-- `watchOS/LibrebusWatch/WatchHomeView.swift`, `WatchDetailViews.swift`: watchOS UI.
+- `watchOS/LibreCapWatch/WatchLessonAlerts.swift`: local notification scheduling.
+- `watchOS/LibreCapWatch/LessonReminderView.swift`: Watch notification/card UI.
+- `ios/LibreCap/PhoneWatchSync.swift`: iPhone transport and status section.
+- `watchOS/LibreCapWatch/WatchSchoolStore.swift`: Watch delivery and request state.
+- `watchOS/LibreCapWatch/WatchSnapshotCache.swift`: protected offline persistence.
+- `watchOS/LibreCapWatch/WatchHomeView.swift`, `WatchDetailViews.swift`: watchOS UI.

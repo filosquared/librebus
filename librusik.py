@@ -59,8 +59,8 @@ LIBRUSIK_PATH = os.path.dirname(os.path.abspath(__file__)) + "/"
 SESSIONS = SessionManager(database)
 AUTH_SESSIONS = AuthSessionManager()
 PANEL_SESSIONS = AuthSessionManager()
-USER_SESSION_COOKIE = "librebus_session"
-PANEL_SESSION_COOKIE = "librebus_admin_session"
+USER_SESSION_COOKIE = "librecap_session"
+PANEL_SESSION_COOKIE = "librecap_admin_session"
 BOOT = round(time.time())
 welcome = welcomes[0]
 greeting = greetings[0]
@@ -294,6 +294,8 @@ async def api(request):
 						librus = Librus(SESSIONS.get(data["username"]))
 						if await librus.mktoken(database[data["username"]]["l_login"], decrypt(database[data["username"]]["l_passwd"])):
 							notifications = await librus.get_notifications()
+							if notifications is None:
+								return response("", 503)
 							return JSONresponse(SESSIONS.get_notifications(data["username"], notifications), 200)
 						else:
 							return response({}, 403)
@@ -1398,7 +1400,7 @@ app.add_routes([
 ])
 
 async def run_server(open_browser=False, on_started=None):
-	"""Run Librebus until the host application asks it to stop."""
+	"""Run LibreCap until the host application asks it to stop."""
 	runner = web.AppRunner(app)
 	await runner.setup()
 	ssl_context = None

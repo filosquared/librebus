@@ -1,11 +1,11 @@
-# Librebus
+# LibreCap
 
-Librebus is a self-hosted, open-source school journal for students and
+LibreCap is a self-hosted, open-source school journal for students and
 families. It provides grades, attendance, timetable, homework, school days
 off, messages, and account settings in a provider-neutral data model.
 
 The optional Librus/Synergia adapter uses credentials supplied by the account
-owner. Librebus is an independent community project and is not affiliated with
+owner. LibreCap is an independent community project and is not affiliated with
 Librus. Never expose a server instance without TLS, access controls, and a
 trusted reverse proxy.
 
@@ -20,7 +20,7 @@ trusted reverse proxy.
 | Native Android app | Direct Librus access with local caching | No |
 
 The native Apple apps use the school-issued **Synergia login** and keep the
-Librus password in Keychain. They do not require a Librebus server. The Watch
+Librus password in Keychain. They do not require a LibreCap server. The Watch
 receives a privacy-limited snapshot from the paired iPhone; it has no separate
 login or direct network client.
 
@@ -32,6 +32,7 @@ login or direct network client.
 - Timetable, homework, school free days, and teacher free days
 - Local-first native apps with offline cache
 - Native Android app with the same dashboard and school-data categories
+- Recent grade, exam, absence, and parent-teacher conference notifications
 - Apple Watch companion with optional five-minute lesson-ending alerts
 - HttpOnly server-managed sessions for the web app
 - SQLite persistence with migration from older JSON installations
@@ -40,35 +41,40 @@ login or direct network client.
 
 ## Web app
 
+The Home page shows notification banners for new school activity observed in
+the last 14 days. The first successful refresh establishes a baseline, so
+existing records do not generate a burst of alerts. Notifications are kept in
+memory per account and are not written to the persistent school-data store.
+
 ```bash
-git clone https://github.com/filosquared/librebus.git
-cd librebus
+git clone https://github.com/filosquared/librecap.git
+cd librecap
 python3 -m venv .venv
 . .venv/bin/activate
 python3 -m pip install -r requirements.txt
 python3 librusik.py --skip-wizard
 ```
 
-Open [http://localhost:7777](http://localhost:7777). On first start, Librebus
+Open [http://localhost:7777](http://localhost:7777). On first start, LibreCap
 prints a randomly generated administrator password. Save it, sign in at
 `/panel`, and change it immediately. Omit `--skip-wizard` to use the
 interactive setup wizard.
 
 New installations listen on `127.0.0.1`. Set
-`LIBREBUS_LISTEN_ADDRESS=0.0.0.0` only when the service is intentionally
+`LIBRECAP_LISTEN_ADDRESS=0.0.0.0` only when the service is intentionally
 behind a protected network boundary.
 
 ## Native Apple apps
 
-The shared Xcode project is [`ios/Librebus.xcodeproj`](ios/Librebus.xcodeproj).
+The shared Xcode project is [`ios/LibreCap.xcodeproj`](ios/LibreCap.xcodeproj).
 Open it in full Xcode, choose a signing team, and use these schemes:
 
-- `Librebus` on an iPhone or iOS Simulator
-- `LibrebusWatch` on a paired Apple Watch or watchOS Simulator
-- `Librebus` with **My Mac** for the native macOS app
+- `LibreCap` on an iPhone or iOS Simulator
+- `LibreCapWatch` on a paired Apple Watch or watchOS Simulator
+- `LibreCap` with **My Mac** for the native macOS app
 
 The native macOS app starts directly in one window and stores its cache in
-`~/Library/Application Support/Librebus`. It does not start the Python server.
+`~/Library/Application Support/LibreCap`. It does not start the Python server.
 The older Python macOS wrapper remains available when the web app is preferred.
 
 Convenience build commands:
@@ -79,7 +85,7 @@ Convenience build commands:
 ./tools/build-macos-native.sh
 ```
 
-The macOS native build writes `dist/native/Librebus.app`. For the older Python
+The macOS native build writes `dist/native/LibreCap.app`. For the older Python
 wrapper, install `requirements-macos.txt`, run `python3 macos_app.py`, or use
 `./tools/build-macos-app.sh`.
 
@@ -100,14 +106,14 @@ not critical alerts or forced app launches.
 
 ### App icon
 
-The portable Icon Composer source is [`LibreBus.icon`](LibreBus.icon). The
+The portable Icon Composer source is [`LibreCap.icon`](LibreCap.icon). The
 generated iOS and Watch asset catalogs are included in the Xcode project.
 
 ## Data and privacy
 
 The web app stores runtime state in `data/`:
 
-- `librebus.sqlite3` contains configuration and application accounts.
+- `librecap.sqlite3` contains configuration and application accounts.
 - `fernet.key` encrypts stored upstream credentials and must be protected.
 - `profile_pics/` contains uploaded profile images.
 
@@ -118,9 +124,9 @@ passwords, session tokens, or provider API responses.
 Useful environment overrides:
 
 ```bash
-LIBREBUS_DATA_DIR=/srv/librebus/data
-LIBREBUS_LISTEN_ADDRESS=127.0.0.1
-LIBREBUS_PORT=7777
+LIBRECAP_DATA_DIR=/srv/librecap/data
+LIBRECAP_LISTEN_ADDRESS=127.0.0.1
+LIBRECAP_PORT=7777
 ```
 
 Native apps store credentials in the platform Keychain and school data in
@@ -129,11 +135,11 @@ private app storage. Signing out removes saved credentials and local cache.
 ## Docker
 
 ```bash
-docker build -t librebus .
-docker run -d --name librebus \
+docker build -t librecap .
+docker run -d --name librecap \
   -p 7777:7777 \
   -v "$(pwd)/data:/app/data" \
-  librebus
+  librecap
 ```
 
 The container listens on all interfaces inside the container. Use TLS and
@@ -142,7 +148,7 @@ authentication at a reverse proxy outside a trusted local network.
 ## Development checks
 
 ```bash
-PYTHONPYCACHEPREFIX=/tmp/librebus-pycache python3 -m compileall -q .
+PYTHONPYCACHEPREFIX=/tmp/librecap-pycache python3 -m compileall -q .
 python3 -m unittest discover -s tests
 ./tools/test-native.sh
 git diff --check
@@ -153,4 +159,4 @@ credentials or real student records to the repository.
 
 ## License
 
-Librebus is distributed under the MIT License. See [LICENSE](LICENSE).
+LibreCap is distributed under the MIT License. See [LICENSE](LICENSE).

@@ -1,10 +1,10 @@
-# Librebus iOS app
+# LibreCap iOS app
 
 This Xcode project also builds the native [macOS app](../macos/README.md).
 Both platforms share the SwiftUI screens and Librus client.
 
 The iPhone app also embeds an [Apple Watch companion](../watchOS/README.md).
-Use the `LibrebusWatch` scheme to run it on your paired Watch. Both targets need
+Use the `LibreCapWatch` scheme to run it on your paired Watch. Both targets need
 the same signing team; the Watch receives cached data from iPhone, not from Mac.
 Optional **More → Apple Watch → Lesson-ending alerts** sends the Watch a setting
 to notify five minutes before each lesson ends, with the next lesson, room and
@@ -23,12 +23,24 @@ The same Settings screen also supports System, Light, and Dark appearance modes.
 Homework and lesson details also contain private local notes, a reminder
 preference, and a “no longer relevant” flag.
 
-No Librebus server is required. The app needs an internet connection when it signs in or synchronizes with Librus; cached data remains available between syncs.
+On iPhone, **Settings → Notifications → School activity** optionally schedules
+local notifications for newly detected grades, homework, absences, and messages.
+The first complete sync establishes a private on-device baseline, so existing
+school activity is not announced. Subsequent syncs compare against that cache and
+notify only about new records. Checks run while the app is open; this feature does
+not use APNs or background server notifications.
+
+On each app launch, the iPhone and Mac targets also check the public LibreCap
+GitHub releases endpoint. If a newer stable release tag is found, Home shows a
+link to the GitHub release page. This check does not use Librus credentials or
+school data, and it does not silently install updates.
+
+No LibreCap server is required. The app needs an internet connection when it signs in or synchronizes with Librus; cached data remains available between syncs.
 
 ## Build and run
 
-1. Open `ios/Librebus.xcodeproj` in Xcode.
-2. Select the `Librebus` target and choose your Apple Developer Team under **Signing & Capabilities**.
+1. Open `ios/LibreCap.xcodeproj` in Xcode.
+2. Select the `LibreCap` target and choose your Apple Developer Team under **Signing & Capabilities**.
 3. Connect an iPhone running iOS 16 or later, or choose an iOS Simulator.
 4. Press **Run**.
 
@@ -38,7 +50,7 @@ The repository helper builds an iOS Simulator app:
 ./tools/build-ios.sh
 ```
 
-For a physical device, let Xcode manage signing and provisioning. The project uses the bundle identifier `com.filiplopes.Librebus`; change it if that identifier is already in use.
+For a physical device, let Xcode manage signing and provisioning. The project uses the bundle identifier `com.filiplopes.LibreCap`; change it if that identifier is already in use.
 
 ## Data and privacy
 
@@ -56,11 +68,14 @@ and paths. An HTTP 200 alone is not proof of a successful login.
 Offline authentication checks (macOS with Xcode):
 
 ```bash
-swiftc -module-cache-path /tmp/librebus-swift-cache ios/Librebus/Models.swift ios/Librebus/LibrusClient.swift tests/ios_auth_checks.swift -o /tmp/librebus-auth-checks
-/tmp/librebus-auth-checks
+swiftc -module-cache-path /tmp/librecap-swift-cache ios/LibreCap/Models.swift ios/LibreCap/LibrusClient.swift tests/ios_auth_checks.swift -o /tmp/librecap-auth-checks
+/tmp/librecap-auth-checks
 ```
 
 Credentials are stored in the Keychain with device-only protection. Non-secret synchronized data is stored in the app's Application Support directory. Signing out deletes both the saved credentials and local cache.
+
+Notification permission is optional and can be revoked in iPhone Settings. Alert
+content is generated on-device from the locally cached school data.
 
 The app talks to Librus over HTTPS. Its OAuth bootstrap differs from the legacy
 Python implementation. Librus can change that flow or its response formats, so

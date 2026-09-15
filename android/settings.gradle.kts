@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Librebus"
+rootProject.name = "LibreCap"
 include(":app")

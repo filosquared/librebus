@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+import sqlite3
 from pathlib import Path
 
 from lib.storage import SQLiteStore
@@ -22,7 +23,7 @@ class StorageTests(unittest.TestCase):
 			loaded_config, loaded_users = SQLiteStore(directory).load(defaults)
 			self.assertEqual(loaded_config["name"], "owner")
 			self.assertEqual(loaded_users["alice"]["first_name"], "Alice")
-			self.assertTrue(Path(directory, "librebus.sqlite3").exists())
+			self.assertTrue(Path(directory, "librecap.sqlite3").exists())
 
 	def test_legacy_json_is_migrated(self):
 		defaults = {"name": "admin", "passwd": None}
@@ -34,6 +35,22 @@ class StorageTests(unittest.TestCase):
 			config, users = SQLiteStore(directory).load(defaults)
 			self.assertEqual(config["name"], "legacy")
 			self.assertIn("alice", users)
+
+	def test_existing_database_filename_is_migrated(self):
+		defaults = {"name": "admin", "passwd": None}
+		with tempfile.TemporaryDirectory() as directory:
+			legacy = Path(directory, "previous.sqlite3")
+			with sqlite3.connect(legacy) as connection:
+				connection.execute("CREATE TABLE app_config (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+				connection.execute("CREATE TABLE users (username TEXT PRIMARY KEY, payload TEXT NOT NULL)")
+				connection.execute("INSERT INTO app_config VALUES ('name', '\"legacy\"')")
+				connection.execute("INSERT INTO users VALUES ('alice', '{\"first_name\": \"Alice\"}')")
+
+			config, users = SQLiteStore(directory).load(defaults)
+			self.assertEqual(config["name"], "legacy")
+			self.assertIn("alice", users)
+			self.assertTrue(Path(directory, "librecap.sqlite3").exists())
+			self.assertFalse(legacy.exists())
 
 	def test_empty_database_does_not_restore_legacy_backup(self):
 		defaults = {"name": "admin", "passwd": None}

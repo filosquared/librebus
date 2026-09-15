@@ -6,8 +6,8 @@ CONFIGURATION="${CONFIGURATION:-Debug}"
 DESTINATION="${DESTINATION:-generic/platform=watchOS Simulator}"
 
 xcodebuild \
-    -project "$ROOT_DIR/ios/Librebus.xcodeproj" \
-    -scheme LibrebusWatch \
+    -project "$ROOT_DIR/ios/LibreCap.xcodeproj" \
+    -scheme LibreCapWatch \
     -configuration "$CONFIGURATION" \
     -destination "$DESTINATION" \
     -derivedDataPath "$ROOT_DIR/build/watch" \

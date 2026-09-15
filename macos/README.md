@@ -1,8 +1,8 @@
-# Native Librebus for macOS
+# Native LibreCap for macOS
 
 The native Mac app shares the iOS SwiftUI screens, pastel dashboard cards, tabs,
 Librus client, Keychain storage, and local cache. It requires macOS 13 or later.
-No Python installation or Librebus server is needed to run it.
+No Python installation or LibreCap server is needed to run it.
 
 ## Build
 
@@ -10,14 +10,14 @@ With full Xcode installed, run from the repository:
 
 ```sh
 ./tools/build-macos-native.sh
-open dist/native/Librebus.app
+open dist/native/LibreCap.app
 ```
 
-Alternatively, open `ios/Librebus.xcodeproj`, choose the Librebus scheme and
+Alternatively, open `ios/LibreCap.xcodeproj`, choose the LibreCap scheme and
 **My Mac**, and run. Local command-line builds use ad-hoc signing; public
 distribution requires your own Developer ID signing and notarization.
 
-Drag `dist/native/Librebus.app` into Applications to install it. The older Python
+Drag `dist/native/LibreCap.app` into Applications to install it. The older Python
 Mac app and its build helper remain available, and the native build has its own
 output directory so building it does not overwrite that app.
 
@@ -34,7 +34,10 @@ details, and the gear button exposes language, app-name, and automatic-sync
 settings. Resize the window as needed; press Command-R to sync. The window
 opens at 680 × 820 points, with a 520 × 620 minimum.
 Appearance can be set independently to System, Light, or Dark from Settings.
+On each launch, the app checks the public LibreCap GitHub releases endpoint and
+shows a Home link when a newer stable release is available. It opens the
+release page for manual download rather than silently installing software.
 
 Credentials are saved in macOS Keychain. The cache is stored at
-`~/Library/Application Support/Librebus/school-data.json`. Signing out clears
+`~/Library/Application Support/LibreCap/school-data.json`. Signing out clears
 the native app's credentials and school-data cache.

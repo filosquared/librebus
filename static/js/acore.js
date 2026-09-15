@@ -19,14 +19,14 @@ function agou(where) {
 	}, 350);
 }
 function setCookie(user) {
-	if (user) localStorage.setItem("librebus_panel_user", user);
+	if (user) localStorage.setItem("librecap_panel_user", user);
 	document.cookie = "librusik_a=; Max-Age=0; path=/";
 }
 function getCookie() {
-	return {"name": localStorage.getItem("librebus_panel_user") || ""};
+	return {"name": localStorage.getItem("librecap_panel_user") || ""};
 }
 function rmCookie() {
-	localStorage.removeItem("librebus_panel_user");
+	localStorage.removeItem("librecap_panel_user");
 	document.cookie = "librusik_a=; Max-Age=0; path=/";
 	post("panel/logout", {}, function() { agou("panel/login"); });
 }

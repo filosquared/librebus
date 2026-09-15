@@ -1,6 +1,6 @@
 ## Project Purpose
 
-Librebus is a self-hosted, open-source school journal. Keep Librus connectivity optional through an adapter; prefer provider-neutral data models.
+LibreCap is a self-hosted, open-source school journal. Keep Librus connectivity optional through an adapter; prefer provider-neutral data models.
 
 ## Stack and Runtime
 
@@ -12,7 +12,7 @@ Python 3.13, `aiohttp`, `BeautifulSoup4`, `cryptography`, SQLite, HTML/CSS/vanil
 - macOS app: `python3 macos_app.py` after `pip install -r requirements-macos.txt`
 - macOS bundle: `./tools/build-macos-app.sh`
 - iOS simulator build: `./tools/build-ios.sh` after installing full Xcode
-- Syntax check: `PYTHONPYCACHEPREFIX=/tmp/librebus-pycache python3 -m compileall -q .`
+- Syntax check: `PYTHONPYCACHEPREFIX=/tmp/librecap-pycache python3 -m compileall -q .`
 - Tests: `python3 -m unittest discover -s tests`
 - Validate patches: `git diff --check`
 
@@ -20,7 +20,7 @@ Python 3.13, `aiohttp`, `BeautifulSoup4`, `cryptography`, SQLite, HTML/CSS/vanil
 
 - `librusik.py`: server and routes
 - `macos_app.py`: embedded-window macOS launcher
-- `ios/Librebus/`: native SwiftUI app, direct Librus client, Keychain, and local cache
+- `ios/LibreCap/`: native SwiftUI app, direct Librus client, Keychain, and local cache
 - `lib/api/`: provider adapters and sessions
 - `lib/utils.py`: persistence and helpers
 - `html/`, `static/`: frontend
@@ -54,7 +54,7 @@ Users own accounts and sessions. Providers supply students, grades, attendance, 
 
 ## Verification Before Completion
 
-Run `PYTHONPYCACHEPREFIX=/tmp/librebus-pycache python3 -m compileall -q .`, `python3 -m unittest discover -s tests`, and `git diff --check`.
+Run `PYTHONPYCACHEPREFIX=/tmp/librecap-pycache python3 -m compileall -q .`, `python3 -m unittest discover -s tests`, and `git diff --check`.
 
 ## Escalation - Ask the User When
 

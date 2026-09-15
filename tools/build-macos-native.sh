@@ -7,8 +7,8 @@ OUTPUT_DIR="$ROOT_DIR/dist/native"
 
 # Local ad-hoc signing: no paid developer account or Python runtime required.
 xcodebuild \
-    -project "$ROOT_DIR/ios/Librebus.xcodeproj" \
-    -scheme Librebus \
+    -project "$ROOT_DIR/ios/LibreCap.xcodeproj" \
+    -scheme LibreCap \
     -configuration Release \
     -sdk macosx \
     -destination 'platform=macOS' \
@@ -17,6 +17,6 @@ xcodebuild \
     -quiet build
 
 mkdir -p "$OUTPUT_DIR"
-ditto "$BUILD_DIR/Build/Products/Release/Librebus.app" "$OUTPUT_DIR/Librebus.app"
-codesign --verify --deep --strict "$OUTPUT_DIR/Librebus.app"
-echo "Built $OUTPUT_DIR/Librebus.app"
+ditto "$BUILD_DIR/Build/Products/Release/LibreCap.app" "$OUTPUT_DIR/LibreCap.app"
+codesign --verify --deep --strict "$OUTPUT_DIR/LibreCap.app"
+echo "Built $OUTPUT_DIR/LibreCap.app"

@@ -29,10 +29,10 @@ if getattr(sys, "frozen", False):
 else:
 	BASE_DIR = Path(__file__).resolve().parent.parent
 PATH = str(BASE_DIR)
-if os.environ.get("LIBREBUS_DATA_DIR"):
-	DEFAULT_DATA_DIR = os.environ["LIBREBUS_DATA_DIR"]
+if os.environ.get("LIBRECAP_DATA_DIR"):
+	DEFAULT_DATA_DIR = os.environ["LIBRECAP_DATA_DIR"]
 elif getattr(sys, "frozen", False) and sys.platform == "darwin":
-	DEFAULT_DATA_DIR = str(Path.home() / "Library" / "Application Support" / "Librebus")
+	DEFAULT_DATA_DIR = str(Path.home() / "Library" / "Application Support" / "LibreCap")
 else:
 	DEFAULT_DATA_DIR = str(BASE_DIR / "data")
 DATA_DIR = DEFAULT_DATA_DIR
@@ -64,11 +64,11 @@ def setup(CONFIG_DEFAULT):
 	global INITIAL_ADMIN_PASSWORD
 	INITIAL_ADMIN_PASSWORD = None
 	data_path = Path(DATA_DIR)
-	first_run = not data_path.exists() or not (data_path / "librebus.sqlite3").exists()
+	first_run = not data_path.exists() or not any(data_path.glob("*.sqlite3"))
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--skip-wizard", action="store_true", default=False, help="Skip setup wizard on first run")
 	args, _ = parser.parse_known_args()
-	skip_wizard = args.skip_wizard or os.environ.get("LIBREBUS_SKIP_WIZARD") == "1"
+	skip_wizard = args.skip_wizard or os.environ.get("LIBRECAP_SKIP_WIZARD") == "1"
 
 	config, database = STORE.load(CONFIG_DEFAULT)
 	if first_run and not skip_wizard:
@@ -93,12 +93,12 @@ def setup(CONFIG_DEFAULT):
 
 	data_path.mkdir(parents=True, exist_ok=True)
 	Path(PROFILE_PIC_DIR).mkdir(parents=True, exist_ok=True)
-	if os.environ.get("LIBREBUS_LISTEN_ADDRESS"):
-		config["listen_address"] = os.environ["LIBREBUS_LISTEN_ADDRESS"]
-	if os.environ.get("LIBREBUS_PORT"):
-		config["port"] = int(os.environ["LIBREBUS_PORT"])
-	if os.environ.get("LIBREBUS_CHECK_BROWSER") is not None:
-		config["check_browser"] = os.environ["LIBREBUS_CHECK_BROWSER"].lower() not in {"0", "false", "no"}
+	if os.environ.get("LIBRECAP_LISTEN_ADDRESS"):
+		config["listen_address"] = os.environ["LIBRECAP_LISTEN_ADDRESS"]
+	if os.environ.get("LIBRECAP_PORT"):
+		config["port"] = int(os.environ["LIBRECAP_PORT"])
+	if os.environ.get("LIBRECAP_CHECK_BROWSER") is not None:
+		config["check_browser"] = os.environ["LIBRECAP_CHECK_BROWSER"].lower() not in {"0", "false", "no"}
 	STORE.save_config(config)
 	STORE.save_users(database)
 

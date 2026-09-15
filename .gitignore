@@ -17,7 +17,7 @@ xcuserdata
 *.xcuserstate
 
 # Icon Composer exports are derived from the portable .icon source.
-LibreBus Exports/
+LibreCap Exports/
 
 # Android SDK paths are machine-specific and must not be committed.
 android/local.properties

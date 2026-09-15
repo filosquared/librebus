@@ -1,8 +1,8 @@
-# Librebus Android app
+# LibreCap Android app
 
 The Android app is a native Kotlin/Jetpack Compose port of the local-first
 Apple app. It connects directly to Librus Synergia and does not require a
-Librebus server.
+LibreCap server.
 
 It includes:
 
@@ -12,7 +12,9 @@ It includes:
 - grade filtering by first/second semester, tappable timetable lessons, and
   private notes/reminders;
 - received/sent/announcements/notes message categories;
-- Polish and English UI, System/Light/Dark appearance, and 45-minute sync.
+- Polish and English UI, System/Light/Dark appearance, and 45-minute sync;
+- a startup release check against the public LibreCap GitHub releases; when a
+  newer stable version is found, Home offers a link to its release page.
 
 ## Build
 
@@ -36,6 +38,10 @@ cd ..
 The release APK is intentionally unsigned in this repository. Sign it with
 your own Android keystore before distributing it through Google Play or to
 other devices.
+
+The update checker only compares the installed version with the latest stable
+GitHub release. It does not access Librus credentials or school data and does
+not silently install APKs.
 
 ## Data and privacy
 

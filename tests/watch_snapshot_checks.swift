@@ -115,7 +115,7 @@ struct WatchSnapshotChecks {
         clockChanged.generatedAt = now.addingTimeInterval(-60)
         check(clockChanged.isNewer(than: signedOut), "Within a stream, ordering survives clock adjustment")
 
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("librebus-watch-test-\(UUID().uuidString)")
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("librecap-watch-test-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: directory) }
         let cache = WatchSnapshotCache(directory: directory)
         check(try cache.load() == nil, "First launch has no cached snapshot")

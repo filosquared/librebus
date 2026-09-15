@@ -13,8 +13,8 @@ fi
 	--noconfirm \
 	--clean \
 	--windowed \
-	--name Librebus \
-	--osx-bundle-identifier com.filosquared.librebus \
+	--name LibreCap \
+	--osx-bundle-identifier com.filosquared.librecap \
 	--paths "$ROOT_DIR" \
 	--add-data "$ROOT_DIR/html:html" \
 	--add-data "$ROOT_DIR/static:static" \
@@ -24,4 +24,4 @@ fi
 	--specpath "$ROOT_DIR/build/macos" \
 	"$ROOT_DIR/macos_app.py"
 
-echo "Built $ROOT_DIR/dist/Librebus.app"
+echo "Built $ROOT_DIR/dist/LibreCap.app"

@@ -1,4 +1,5 @@
 import aiohttp
+import asyncio
 import json
 import traceback
 from bs4 import BeautifulSoup
@@ -404,28 +405,132 @@ class Librus:
 		return ptc["ParentTeacherConferences"]
 
 	def parseAddDate(self, date):
-		return datetime.strptime(date, "%Y-%m-%d %H:%M:%S")
+		"""Parse the date formats returned by the provider.
+
+		Librus has returned both second-precision timestamps and date-only
+		values over time.  Keeping parsing here lets notification filtering
+		remain independent of the provider's exact response variant.
+		"""
+		if isinstance(date, datetime):
+			parsed = date
+		elif isinstance(date, str):
+			value = date.strip()
+			parsed = None
+			for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%d.%m.%Y %H:%M:%S", "%d.%m.%Y"):
+				try:
+					parsed = datetime.strptime(value, fmt)
+					break
+				except ValueError:
+					pass
+			if parsed is None:
+				try:
+					parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+				except ValueError as error:
+					raise ValueError("Unsupported date format") from error
+		else:
+			raise ValueError("Date must be a string or datetime")
+
+		# Compare provider timestamps with the local server clock without
+		# mixing timezone-aware and naive datetime instances.
+		if parsed.tzinfo is not None:
+			parsed = parsed.astimezone().replace(tzinfo=None)
+		return parsed
 
 	def parseDate(self, date):
 		return datetime.strptime(date, "%Y-%m-%d")
 
 	def check_period(self, date, period):
-		return (datetime.now() - self.parseAddDate(date)).days <= period
+		try:
+			period = max(0, float(period))
+			stamp = self.parseAddDate(date)
+		except (TypeError, ValueError):
+			return False
+		now = datetime.now()
+		return now - timedelta(days=period) <= stamp <= now
+
+	def _recent_notification_count(self, records, days, date_keys, now, include_undated=False):
+		"""Count records added during the notification window.
+
+		Malformed records are skipped.  Some older conference responses do not
+		carry an add timestamp; those records are retained for compatibility
+		with the previous count-based endpoint.
+		"""
+		count = 0
+		for record in records:
+			if not isinstance(record, dict):
+				continue
+			stamp = None
+			had_date = False
+			for key in date_keys:
+				if record.get(key) not in (None, ""):
+					had_date = True
+					try:
+						stamp = self.parseAddDate(record[key])
+					except (TypeError, ValueError):
+						continue
+					break
+			if stamp is None and include_undated and not had_date:
+				count += 1
+			elif stamp is not None and now - timedelta(days=days) <= stamp <= now:
+				count += 1
+		return count
 
 	async def get_notifications(self, days=14):
-		grades = len((await self.get_data("Grades"))["Grades"])
-		exams = len((await self.get_data("HomeWorks"))["HomeWorks"])
-		attendances = (await self.get_data("Attendances"))["Attendances"]
-		attendances_types = {str(x["Id"]): x["IsPresenceKind"] for x in (await self.get_data("Attendances/Types"))["Types"]}
-		absences = 0
-		for attendance in attendances:
-			absences += not attendances_types[str(attendance["Type"]["Id"])]
-		conferences = len(await self.get_parent_teacher_conferences())
+		"""Build the provider-neutral notification count snapshot.
+
+		Only recent additions are considered.  All endpoints are fetched in
+		parallel because this method runs when the home page opens.  Returning
+		None on an incomplete snapshot lets the caller preserve its last
+		baseline instead of producing false positives.
+		"""
+		try:
+			days = max(0, float(days))
+		except (TypeError, ValueError):
+			return None
+
+		responses = await asyncio.gather(
+			self.get_data("Grades"),
+			self.get_data("HomeWorks"),
+			self.get_data("Attendances"),
+			self.get_data("Attendances/Types"),
+			self.get_parent_teacher_conferences(),
+			return_exceptions=True,
+		)
+		if any(isinstance(item, Exception) or item is None for item in responses):
+			return None
+
+		grades_data, homework_data, attendances_data, types_data, conferences = responses
+		try:
+			grades = grades_data["Grades"]
+			exams = homework_data["HomeWorks"]
+			attendances = attendances_data["Attendances"]
+			attendance_types = {
+				str(item["Id"]): item["IsPresenceKind"]
+				for item in types_data["Types"]
+			}
+			if not all(isinstance(records, list) for records in (grades, exams, attendances, conferences)):
+				return None
+		except (KeyError, TypeError):
+			return None
+
+		now = datetime.now()
+		recent = lambda records, keys: self._recent_notification_count(records, days, keys, now)
+		recent_conferences = lambda records: self._recent_notification_count(
+			records, days, ("AddDate", "AddedDate", "Date", "DateFrom", "StartDate"), now,
+			include_undated=True,
+		)
+		absences = [
+			attendance for attendance in attendances
+			if isinstance(attendance, dict)
+			and isinstance(attendance.get("Type"), dict)
+			and str(attendance["Type"].get("Id")) in attendance_types
+			and not attendance_types[str(attendance["Type"]["Id"])]
+		]
 		return {
-			"grades": grades,
-			"exams": exams,
-			"absences": absences,
-			"conferences": conferences
+			"grades": recent(grades, ("AddDate", "AddedDate")),
+			"exams": recent(exams, ("AddDate", "AddedDate")),
+			"absences": recent(absences, ("AddDate", "Added", "AddedDate")),
+			"conferences": recent_conferences(conferences),
 		}
 
 	async def get_messages(self):
