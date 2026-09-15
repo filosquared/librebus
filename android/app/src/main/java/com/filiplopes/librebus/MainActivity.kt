@@ -68,6 +68,7 @@ import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -243,7 +244,13 @@ private fun LoginScreen(ui: SchoolUiState, viewModel: SchoolViewModel) {
             )
         }
         if (ui.error != null) {
-            item { ErrorCard(ui.error, lang) }
+            item {
+                ErrorCard(
+                    message = ui.error,
+                    language = lang,
+                    onRetry = { if (password.isNotEmpty()) viewModel.login(username, password) else viewModel.retry() }
+                )
+            }
         }
         item {
             Button(
@@ -269,29 +276,46 @@ private fun AuthenticatedApp(ui: SchoolUiState, viewModel: SchoolViewModel) {
             if (route in mainRoutes) BottomBar(route, ui.language) { route = it }
         }
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
-            AnimatedContent(
-                targetState = route,
-                transitionSpec = {
-                    (fadeIn(tween(240)) + slideInHorizontally(tween(240)) { it / 6 }) togetherWith
-                        (fadeOut(tween(180)) + slideOutHorizontally(tween(180)) { -it / 6 })
-                },
-                label = "app-route",
-                contentKey = { it }
-            ) { screen ->
-                when (screen) {
-                    Route.HOME -> HomeScreen(ui, viewModel, { route = Route.SETTINGS }, { go(Route.HOMEWORK, "") }, { go(Route.ATTENDANCE, "") }, { route = Route.MESSAGES }, { go(Route.LESSON_DETAIL, it) })
-                    Route.GRADES -> GradesScreen(ui, viewModel) { go(Route.GRADE_DETAIL, it) }
-                    Route.SCHEDULE -> ScheduleScreen(ui, viewModel) { go(Route.LESSON_DETAIL, it) }
-                    Route.MESSAGES -> MessagesScreen(ui, viewModel) { go(Route.MESSAGE_DETAIL, it) }
-                    Route.MORE -> MoreScreen(ui) { route = it }
-                    Route.HOMEWORK -> HomeworkScreen(ui, viewModel) { go(Route.HOMEWORK_DETAIL, it) }
-                    Route.ATTENDANCE -> AttendanceScreen(ui, viewModel)
-                    Route.SETTINGS -> SettingsScreen(ui, viewModel) { route = Route.HOME }
-                    Route.GRADE_DETAIL -> ui.data.grades.firstOrNull { it.id == selectedId }?.let { DetailScaffold(ui.language.text("Grade details", "Szczegóły oceny"), { route = Route.GRADES }) { GradeDetail(it, ui.language) } }
-                    Route.LESSON_DETAIL -> findLesson(ui.data, selectedId)?.let { lesson -> DetailScaffold(ui.language.text("Lesson details", "Szczegóły lekcji"), { route = Route.SCHEDULE }) { LessonDetail(lesson, ui, viewModel) } }
-                    Route.HOMEWORK_DETAIL -> ui.data.homeworks.firstOrNull { it.id == selectedId }?.let { DetailScaffold(ui.language.text("Homework details", "Szczegóły pracy domowej"), { route = Route.HOMEWORK }) { HomeworkDetail(it, ui, viewModel) } }
-                    Route.MESSAGE_DETAIL -> ui.data.messages.firstOrNull { it.id == selectedId }?.let { MessageDetailScreen(it, ui, viewModel) { route = Route.MESSAGES } }
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                AnimatedContent(
+                    targetState = route,
+                    transitionSpec = {
+                        (fadeIn(tween(240)) + slideInHorizontally(tween(240)) { it / 6 }) togetherWith
+                            (fadeOut(tween(180)) + slideOutHorizontally(tween(180)) { -it / 6 })
+                    },
+                    label = "app-route",
+                    contentKey = { it },
+                    modifier = Modifier.fillMaxSize()
+                ) { screen ->
+                    when (screen) {
+                        Route.HOME -> HomeScreen(ui, viewModel, { route = Route.SETTINGS }, { go(Route.HOMEWORK, "") }, { go(Route.ATTENDANCE, "") }, { route = Route.MESSAGES }, { go(Route.LESSON_DETAIL, it) })
+                        Route.GRADES -> GradesScreen(ui, viewModel) { go(Route.GRADE_DETAIL, it) }
+                        Route.SCHEDULE -> ScheduleScreen(ui, viewModel) { go(Route.LESSON_DETAIL, it) }
+                        Route.MESSAGES -> MessagesScreen(ui, viewModel) { go(Route.MESSAGE_DETAIL, it) }
+                        Route.MORE -> MoreScreen(ui) { route = it }
+                        Route.HOMEWORK -> HomeworkScreen(ui, viewModel) { go(Route.HOMEWORK_DETAIL, it) }
+                        Route.ATTENDANCE -> AttendanceScreen(ui, viewModel)
+                        Route.SETTINGS -> SettingsScreen(ui, viewModel) { route = Route.HOME }
+                        Route.GRADE_DETAIL -> ui.data.grades.firstOrNull { it.id == selectedId }?.let { DetailScaffold(ui.language.text("Grade details", "Szczegóły oceny"), { route = Route.GRADES }) { GradeDetail(it, ui.language) } }
+                        Route.LESSON_DETAIL -> findLesson(ui.data, selectedId)?.let { lesson -> DetailScaffold(ui.language.text("Lesson details", "Szczegóły lekcji"), { route = Route.SCHEDULE }) { LessonDetail(lesson, ui, viewModel) } }
+                        Route.HOMEWORK_DETAIL -> ui.data.homeworks.firstOrNull { it.id == selectedId }?.let { DetailScaffold(ui.language.text("Homework details", "Szczegóły pracy domowej"), { route = Route.HOMEWORK }) { HomeworkDetail(it, ui, viewModel) } }
+                        Route.MESSAGE_DETAIL -> ui.data.messages.firstOrNull { it.id == selectedId }?.let { MessageDetailScreen(it, ui, viewModel) { route = Route.MESSAGES } }
+                    }
+                }
+            }
+            AnimatedVisibility(
+                visible = ui.error != null,
+                enter = fadeIn(tween(220)) + expandVertically(tween(220)),
+                exit = fadeOut(tween(160)) + shrinkVertically(tween(160))
+            ) {
+                ui.error?.let {
+                    ErrorCard(
+                        message = it,
+                        language = ui.language,
+                        onRetry = viewModel::retry,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
                 }
             }
         }
@@ -351,7 +375,13 @@ private fun HomeScreen(ui: SchoolUiState, viewModel: SchoolViewModel, settings: 
     val lang = ui.language
     Column(Modifier.fillMaxSize()) {
         ScreenTopBar(ui.data.profile?.fullName ?: "Librebus", actions = {
-            IconButton(onClick = viewModel::sync) { Icon(Icons.Default.Refresh, lang.text("Sync now", "Synchronizuj")) }
+            IconButton(onClick = viewModel::sync, enabled = !ui.syncing) {
+                if (ui.syncing) {
+                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(Icons.Default.Refresh, lang.text("Sync now", "Synchronizuj"))
+                }
+            }
             IconButton(onClick = settings) { Icon(Icons.Default.Settings, lang.text("Settings", "Ustawienia")) }
         })
         LazyColumn(contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -363,15 +393,6 @@ private fun HomeScreen(ui: SchoolUiState, viewModel: SchoolViewModel, settings: 
                         Text("${lang.text("Class", "Klasa")} ${profile.className}", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         if (profile.tutorName.isNotBlank()) Text("${profile.tutorName} (${lang.text("tutor", "wychowawca")})", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                     }
-                }
-            }
-            item {
-                AnimatedVisibility(
-                    visible = ui.error != null,
-                    enter = fadeIn(tween(220)) + expandVertically(tween(220)),
-                    exit = fadeOut(tween(160)) + shrinkVertically(tween(160))
-                ) {
-                    ui.error?.let { ErrorCard(it, lang) }
                 }
             }
             item { TodayCard(ui, viewModel, openLesson) }
@@ -393,11 +414,26 @@ private fun HomeScreen(ui: SchoolUiState, viewModel: SchoolViewModel, settings: 
 }
 
 @Composable
-private fun ErrorCard(message: String, language: AppLanguage) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer), modifier = Modifier.fillMaxWidth().animateContentSize(tween(220))) {
-        Row(Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
-            Icon(Icons.Default.ErrorOutline, null, tint = MaterialTheme.colorScheme.onErrorContainer)
-            Text(message, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodyMedium)
+private fun ErrorCard(message: String, language: AppLanguage, onRetry: (() -> Unit)? = null, modifier: Modifier = Modifier) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+        modifier = modifier.fillMaxWidth().animateContentSize(tween(220))
+    ) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
+                Icon(Icons.Default.ErrorOutline, null, tint = MaterialTheme.colorScheme.onErrorContainer)
+                Text(
+                    message,
+                    Modifier.weight(1f),
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+            onRetry?.let {
+                TextButton(onClick = it, modifier = Modifier.align(Alignment.End)) {
+                    Text(language.text("Try again", "Spróbuj ponownie"))
+                }
+            }
         }
     }
 }

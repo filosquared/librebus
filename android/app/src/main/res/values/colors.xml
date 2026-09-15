@@ -1,3 +1,5 @@
 <resources>
     <color name="librebus_indigo">#4657D6</color>
+    <color name="librebus_icon_background">#549DFF</color>
+    <color name="librebus_icon_foreground">#061526</color>
 </resources>
